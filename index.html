@@ -3,254 +3,198 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>多家投信同步加碼偵測</title>
+<title>主動ETF持股監控</title>
 <style>
 :root {
-  --bg: #0d1117;
-  --surface: #161b22;
-  --surface2: #1c2128;
-  --surface3: #21262d;
-  --border: #30363d;
-  --text: #e6edf3;
-  --muted: #8b949e;
-  --dimmed: #6e7681;
-  --green: #3fb950;
-  --green-dim: #1a3a23;
-  --red: #f85149;
-  --red-dim: #3d1a1a;
-  --gold: #f0b429;
-  --orange: #e8700a;
-  --teal: #3dd68c;
-  --purple: #9161e6;
-  --blue: #58a6ff;
-  --bar-bg: #21262d;
-  --radius: 10px;
-  --radius-sm: 6px;
+  --bg:#0d1117; --surface:#161b22; --surface2:#1c2128; --surface3:#21262d;
+  --border:#30363d; --text:#e6edf3; --muted:#8b949e; --dimmed:#6e7681;
+  --green:#3fb950; --green-dim:#1a3a23; --red:#f85149; --red-dim:#3d1a1a;
+  --gold:#f0b429; --orange:#e8700a; --teal:#3dd68c; --purple:#9161e6; --blue:#58a6ff;
+  --bar-bg:#21262d; --r:10px; --rs:6px;
 }
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, 'Segoe UI', 'Microsoft JhengHei', sans-serif;
-  font-size: 14px;
-  min-height: 100vh;
-}
-
-/* ── Layout ── */
-.page { max-width: 1300px; margin: 0 auto; padding: 24px 16px 60px; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI','Microsoft JhengHei',sans-serif;font-size:14px;min-height:100vh}
+.page{max-width:1300px;margin:0 auto;padding:20px 16px 60px}
 
 /* ── Header ── */
-.header { margin-bottom: 24px; }
-.header h1 {
-  font-size: 22px; font-weight: 700;
-  display: flex; align-items: center; gap: 10px;
-  margin-bottom: 6px;
-}
-.header h1 .icon { font-size: 26px; }
-.header p { color: var(--muted); font-size: 13px; }
-.header-meta {
-  margin-top: 8px; font-size: 12px; color: var(--dimmed);
-  display: flex; align-items: center; gap: 16px;
-}
+.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+.header-left h1{font-size:20px;font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.header-left p{color:var(--muted);font-size:13px}
+.header-meta{margin-top:6px;font-size:12px;color:var(--dimmed);display:flex;gap:14px;flex-wrap:wrap}
+.update-btn{padding:8px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px;transition:all .15s;white-space:nowrap}
+.update-btn:hover{border-color:var(--blue);color:var(--blue)}
+.update-btn.loading{opacity:.6;pointer-events:none}
+
+/* ── Tabs ── */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px}
+.tab-btn{padding:10px 20px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;font-size:14px;transition:all .15s;white-space:nowrap}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:600}
+.tab-content{display:none}
+.tab-content.active{display:block}
 
 /* ── Filter bar ── */
-.filters {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px 16px;
-  display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
-  margin-bottom: 16px;
-}
-.filter-group { display: flex; align-items: center; gap: 6px; }
-.filter-label { color: var(--muted); font-size: 12px; white-space: nowrap; }
-.btn-group { display: flex; gap: 4px; }
-.btn {
-  padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border);
-  background: transparent; color: var(--muted);
-  cursor: pointer; font-size: 12px; transition: all 0.15s;
-  white-space: nowrap;
-}
-.btn:hover { border-color: var(--blue); color: var(--text); }
-.btn.active { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 600; }
-.mode-toggle { display: flex; gap: 0; border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
-.mode-btn {
-  padding: 5px 14px; background: transparent; border: none;
-  cursor: pointer; font-size: 12px; color: var(--muted); transition: all 0.15s;
-}
-.mode-btn.active.increase { background: var(--green-dim); color: var(--green); font-weight: 600; }
-.mode-btn.active.decrease { background: var(--red-dim); color: var(--red); font-weight: 600; }
-.sort-select {
-  background: var(--surface2); border: 1px solid var(--border);
-  color: var(--text); padding: 5px 10px; border-radius: var(--radius-sm);
-  font-size: 12px; cursor: pointer;
-}
-.divider { width: 1px; height: 24px; background: var(--border); }
+.filters{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-bottom:14px}
+.filter-group{display:flex;align-items:center;gap:6px}
+.filter-label{color:var(--muted);font-size:12px;white-space:nowrap}
+.btn-group{display:flex;gap:4px}
+.btn{padding:5px 11px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:12px;transition:all .15s;white-space:nowrap}
+.btn:hover{border-color:var(--blue);color:var(--text)}
+.btn.active{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+.mode-toggle{display:flex;border:1px solid var(--border);border-radius:20px;overflow:hidden}
+.mode-btn{padding:5px 13px;background:transparent;border:none;cursor:pointer;font-size:12px;color:var(--muted);transition:all .15s}
+.mode-btn.active.increase{background:var(--green-dim);color:var(--green);font-weight:600}
+.mode-btn.active.decrease{background:var(--red-dim);color:var(--red);font-weight:600}
+.sort-sel{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:var(--rs);font-size:12px;cursor:pointer}
+.divider{width:1px;height:22px;background:var(--border)}
 
 /* ── Legend ── */
-.legend {
-  display: flex; flex-wrap: wrap; gap: 12px;
-  margin-bottom: 16px; font-size: 12px; color: var(--muted);
-  align-items: center;
-}
-.legend-item { display: flex; align-items: center; gap: 5px; }
-.legend-dot {
-  width: 12px; height: 12px; border-radius: 50%;
-  flex-shrink: 0;
-}
-.dot-gold   { background: var(--gold); }
-.dot-orange { background: var(--orange); }
-.dot-teal   { background: var(--teal); }
-.dot-purple { background: var(--purple); }
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px;font-size:12px;color:var(--muted);align-items:center}
+.legend-item{display:flex;align-items:center;gap:5px}
+.dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+.dot-gold{background:var(--gold)}.dot-orange{background:var(--orange)}
+.dot-teal{background:var(--teal)}.dot-purple{background:var(--purple)}
 
-/* ── Summary bar ── */
-.summary {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px 16px;
-  margin-bottom: 20px;
-  font-size: 14px;
-  color: var(--muted);
-  line-height: 1.6;
-}
-.summary .hl { color: var(--text); font-weight: 700; }
-.summary .hl.green { color: var(--green); }
-.summary .hl.red   { color: var(--red); }
-.summary .hl.blue  { color: var(--blue); }
+/* ── Summary ── */
+.summary{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:11px 16px;margin-bottom:18px;font-size:14px;color:var(--muted);line-height:1.6}
+.summary .hl{color:var(--text);font-weight:700}
+.summary .hl.green{color:var(--green)}.summary .hl.red{color:var(--red)}.summary .hl.blue{color:var(--blue)}
 
-/* ── State messages ── */
-.state-msg {
-  text-align: center; padding: 80px 20px;
-  color: var(--muted); font-size: 15px;
-}
-.state-msg .emoji { font-size: 40px; display: block; margin-bottom: 12px; }
-.spinner {
-  width: 32px; height: 32px;
-  border: 3px solid var(--border); border-top-color: var(--blue);
-  border-radius: 50%; animation: spin 0.8s linear infinite;
-  margin: 0 auto 12px;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
+/* ── State msg ── */
+.state-msg{text-align:center;padding:70px 20px;color:var(--muted);font-size:15px}
+.state-msg .emoji{font-size:38px;display:block;margin-bottom:10px}
+.spinner{width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 10px}
+@keyframes spin{to{transform:rotate(360deg)}}
 
 /* ── Cards grid ── */
-.cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
-  gap: 14px;
-}
-@media (max-width: 600px) {
-  .cards-grid { grid-template-columns: 1fr; }
-  .filters { gap: 10px; }
-}
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(460px,1fr));gap:13px}
+@media(max-width:600px){.cards-grid{grid-template-columns:1fr}}
 
 /* ── Stock card ── */
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.card:hover {
-  border-color: #444c56;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-}
-.card.increase-card { border-left: 3px solid var(--green); }
-.card.decrease-card { border-left: 3px solid var(--red); }
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:15px;transition:border-color .15s,box-shadow .15s}
+.card:hover{border-color:#444c56;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.card.increase-card{border-left:3px solid var(--green)}
+.card.decrease-card{border-left:3px solid var(--red)}
+.card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:11px}
+.stock-code{font-size:17px;font-weight:700;line-height:1}
+.stock-name-sub{font-size:13px;color:var(--muted);margin-top:2px}
+.stock-metrics{margin-top:7px;font-size:13px;line-height:1.7}
+.metrics-row{display:flex;gap:14px;flex-wrap:wrap}
+.metric{display:flex;align-items:center;gap:4px}
+.metric .lbl{color:var(--dimmed);font-size:12px}
+.metric .val{font-weight:600}
+.up{color:var(--green)}.down{color:var(--red)}
+.badge{min-width:50px;height:50px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;line-height:1;flex-shrink:0;border:2.5px solid}
+.badge .num{font-size:19px}.badge .lbl2{font-size:10px;font-weight:500}
+.badge-gold{color:var(--gold);border-color:var(--gold);background:rgba(240,180,41,.1)}
+.badge-orange{color:var(--orange);border-color:var(--orange);background:rgba(232,112,10,.1)}
+.badge-teal{color:var(--teal);border-color:var(--teal);background:rgba(61,214,140,.1)}
+.badge-purple{color:var(--purple);border-color:var(--purple);background:rgba(145,97,230,.1)}
 
-.card-top {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  margin-bottom: 12px;
-}
-.stock-code { font-size: 18px; font-weight: 700; line-height: 1; }
-.stock-name { font-size: 13px; color: var(--muted); margin-top: 3px; }
-.stock-metrics { margin-top: 8px; font-size: 13px; line-height: 1.7; }
-.stock-metrics .row { display: flex; gap: 16px; flex-wrap: wrap; }
-.metric { display: flex; align-items: center; gap: 4px; }
-.metric .label { color: var(--dimmed); font-size: 12px; }
-.metric .val { font-weight: 600; }
-.up   { color: var(--green); }
-.down { color: var(--red); }
+/* ── ETF bar rows ── */
+.etf-bars{margin-top:11px}
+.bar-row{display:grid;grid-template-columns:110px 1fr 64px;align-items:center;gap:7px;padding:3px 0}
+.bar-etf-name{font-size:11px;color:var(--muted);line-height:1.3;overflow:hidden}
+.bar-etf-short{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.bar-etf-code{color:var(--dimmed);font-size:10px;display:block}
+.bar-track{height:5px;background:var(--bar-bg);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;transition:width .6s cubic-bezier(.25,.8,.25,1)}
+.fill-up{background:linear-gradient(90deg,#2ea043,var(--green))}
+.fill-down{background:linear-gradient(90deg,#b91c1c,var(--red))}
+.bar-val{font-size:11px;font-weight:600;text-align:right}
+.expand-toggle{margin-top:7px;background:transparent;border:none;color:var(--blue);font-size:12px;cursor:pointer;padding:3px 0;display:flex;align-items:center;gap:4px}
+.expand-toggle:hover{text-decoration:underline}
+.card-footer{margin-top:11px;padding-top:9px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--dimmed)}
+.new-tag{display:inline-block;padding:1px 5px;background:rgba(88,166,255,.15);color:var(--blue);border-radius:10px;font-size:10px;font-weight:600;margin-left:4px}
 
-.badge {
-  min-width: 52px; height: 52px; border-radius: 50%;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  font-weight: 800; line-height: 1; flex-shrink: 0;
-  border: 2.5px solid;
-}
-.badge .num { font-size: 20px; }
-.badge .lbl { font-size: 10px; font-weight: 500; }
-.badge-gold   { color: var(--gold);   border-color: var(--gold);   background: rgba(240,180,41,0.1); }
-.badge-orange { color: var(--orange); border-color: var(--orange); background: rgba(232,112,10,0.1); }
-.badge-teal   { color: var(--teal);   border-color: var(--teal);   background: rgba(61,214,140,0.1); }
-.badge-purple { color: var(--purple); border-color: var(--purple); background: rgba(145,97,230,0.1); }
+/* ── Single ETF tab ── */
+.single-controls{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-bottom:16px}
+.etf-select{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 12px;border-radius:var(--rs);font-size:13px;cursor:pointer;min-width:220px}
+.single-section{margin-bottom:18px}
+.section-title{font-size:14px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.holding-list{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.holding-row{display:grid;grid-template-columns:60px 1fr auto auto auto;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--border);font-size:13px}
+.holding-row:last-child{border-bottom:none}
+.holding-row:hover{background:var(--surface2)}
+.h-code{color:var(--blue);font-weight:600;font-size:12px}
+.h-name{font-weight:500}
+.h-lots{text-align:right;font-size:12px}
+.h-weight{text-align:right;font-size:12px;color:var(--muted)}
+.h-change{text-align:right;font-size:12px;font-weight:600;min-width:80px}
+.no-change{padding:20px;text-align:center;color:var(--dimmed);font-size:13px}
+.rank-num{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.rank-1{background:rgba(240,180,41,.2);color:var(--gold)}
+.rank-2{background:rgba(232,112,10,.15);color:var(--orange)}
+.rank-3{background:rgba(61,214,140,.15);color:var(--teal)}
+.rank-n{background:var(--surface3);color:var(--muted)}
 
-/* ── ETF bars ── */
-.etf-bars { margin-top: 12px; }
-.bar-row {
-  display: grid;
-  grid-template-columns: 100px 1fr 64px;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0;
-}
-.bar-etf-name {
-  font-size: 12px; color: var(--muted);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.bar-track {
-  height: 6px; background: var(--bar-bg); border-radius: 3px; overflow: hidden;
-}
-.bar-fill {
-  height: 100%; border-radius: 3px;
-  transition: width 0.6s cubic-bezier(.25,.8,.25,1);
-}
-.fill-up   { background: linear-gradient(90deg, #2ea043, var(--green)); }
-.fill-down { background: linear-gradient(90deg, #b91c1c, var(--red)); }
-.bar-val { font-size: 12px; font-weight: 600; text-align: right; }
+/* ── Notify tab ── */
+.notify-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:800px){.notify-grid{grid-template-columns:1fr}}
+.notify-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px}
+.notify-card h3{font-size:15px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:7px}
+.notify-card.wide{grid-column:1/-1}
+.form-group{margin-bottom:12px}
+.form-label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+.form-input{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:var(--rs);font-size:13px;font-family:monospace}
+.form-input:focus{outline:none;border-color:var(--blue)}
+.form-input.saved{border-color:var(--green)}
+.etf-checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;margin-top:4px}
+.etf-check-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--rs);cursor:pointer;font-size:12px;transition:border-color .15s}
+.etf-check-item:hover{border-color:var(--blue)}
+.etf-check-item input{cursor:pointer;accent-color:var(--blue)}
+.etf-check-code{font-weight:600;color:var(--blue);font-size:11px}
+.etf-check-name{color:var(--muted)}
+.action-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.action-btn{padding:8px 16px;border-radius:var(--rs);border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:13px;transition:all .15s;display:flex;align-items:center;gap:5px}
+.action-btn:hover{border-color:var(--blue);color:var(--blue)}
+.action-btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.action-btn.primary:hover{opacity:.85}
+.action-btn.danger{background:#b91c1c;border-color:#b91c1c;color:#fff}
+.action-btn.loading{opacity:.5;pointer-events:none}
+.save-indicator{font-size:11px;color:var(--green);margin-left:6px}
+.pat-hint{font-size:11px;color:var(--dimmed);margin-top:5px;line-height:1.5}
+.pat-hint a{color:var(--blue);text-decoration:none}
+.pat-hint a:hover{text-decoration:underline}
+.preview-box{background:var(--surface3);border:1px solid var(--border);border-radius:var(--rs);padding:12px;margin-top:10px;font-size:12px;font-family:monospace;white-space:pre-wrap;color:var(--muted);max-height:220px;overflow-y:auto;display:none}
+.status-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.status-ok{background:var(--green-dim);color:var(--green)}
+.status-err{background:var(--red-dim);color:var(--red)}
 
-.expand-toggle {
-  margin-top: 8px; background: transparent; border: none;
-  color: var(--blue); font-size: 12px; cursor: pointer;
-  padding: 4px 0; display: flex; align-items: center; gap: 4px;
-}
-.expand-toggle:hover { text-decoration: underline; }
+/* ── Toast ── */
+.toast{position:fixed;bottom:24px;right:24px;padding:11px 18px;border-radius:var(--r);background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:13px;z-index:9999;transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none;max-width:320px}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.success{border-color:var(--green);color:var(--green)}
+.toast.error{border-color:var(--red);color:var(--red)}
 
-/* ── Card footer ── */
-.card-footer {
-  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
-  display: flex; justify-content: space-between; align-items: center;
-  font-size: 11px; color: var(--dimmed);
-}
-.new-tag {
-  display: inline-block; padding: 1px 6px;
-  background: rgba(88,166,255,0.15); color: var(--blue);
-  border-radius: 10px; font-size: 10px; font-weight: 600;
-  margin-left: 6px;
-}
-
-/* ── Responsive ── */
-@media (max-width: 760px) {
-  .bar-row { grid-template-columns: 80px 1fr 56px; }
-}
+@media(max-width:760px){.bar-row{grid-template-columns:80px 1fr 56px}.holding-row{grid-template-columns:50px 1fr auto}}
 </style>
 </head>
 <body>
 <div class="page">
 
-  <!-- Header -->
-  <div class="header">
-    <h1><span class="icon">📊</span> 多家投信同步加碼偵測</h1>
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <h1>📊 多家投信同步加碼偵測</h1>
     <p>追蹤 14 檔主動式 ETF，偵測短期內被多家投信同步增持／減持的個股</p>
     <div class="header-meta">
       <span id="data-date">資料載入中…</span>
       <span id="etf-count"></span>
     </div>
   </div>
+  <button class="update-btn" id="update-btn" onclick="triggerUpdate()">🔄 手動更新</button>
+</div>
 
-  <!-- Filters -->
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab-btn active" data-tab="multi">📊 多ETF同步</button>
+  <button class="tab-btn" data-tab="single">🔍 單檔ETF查詢</button>
+  <button class="tab-btn" data-tab="notify">🔔 Telegram推播</button>
+</div>
+
+<!-- ═══ Tab: 多ETF同步 ═══ -->
+<div id="tab-multi" class="tab-content active">
   <div class="filters">
     <div class="filter-group">
       <span class="filter-label">觀察</span>
@@ -260,9 +204,7 @@ body {
         <button class="btn" data-v="5">5天</button>
       </div>
     </div>
-
     <div class="divider"></div>
-
     <div class="filter-group">
       <span class="filter-label">最少</span>
       <div class="btn-group" id="mincount-btns">
@@ -273,19 +215,15 @@ body {
         <button class="btn" data-v="8">≥8家</button>
       </div>
     </div>
-
     <div class="divider"></div>
-
     <div class="mode-toggle" id="mode-toggle">
       <button class="mode-btn active increase" data-v="increase">▲ 增持</button>
       <button class="mode-btn decrease" data-v="decrease">▼ 減持</button>
     </div>
-
     <div class="divider"></div>
-
     <div class="filter-group">
       <span class="filter-label">排序</span>
-      <select class="sort-select" id="sort-select">
+      <select class="sort-sel" id="sort-select">
         <option value="families">投信家數</option>
         <option value="pct">合計增減幅</option>
         <option value="value">折合市值</option>
@@ -294,383 +232,750 @@ body {
     </div>
   </div>
 
-  <!-- Legend -->
   <div class="legend">
-    <span style="color:var(--dimmed); font-size:12px;">投信家數：</span>
-    <div class="legend-item"><div class="legend-dot dot-gold"></div>8家以上</div>
-    <div class="legend-item"><div class="legend-dot dot-orange"></div>5–7家</div>
-    <div class="legend-item"><div class="legend-dot dot-teal"></div>3–4家</div>
-    <div class="legend-item"><div class="legend-dot dot-purple"></div>2家</div>
+    <span style="color:var(--dimmed);font-size:12px">投信家數：</span>
+    <div class="legend-item"><div class="dot dot-gold"></div>8家以上</div>
+    <div class="legend-item"><div class="dot dot-orange"></div>5–7家</div>
+    <div class="legend-item"><div class="dot dot-teal"></div>3–4家</div>
+    <div class="legend-item"><div class="dot dot-purple"></div>2家</div>
   </div>
 
-  <!-- Summary -->
   <div class="summary" id="summary">讀取中…</div>
-
-  <!-- Content -->
-  <div id="content">
-    <div class="state-msg">
-      <div class="spinner"></div>
-      載入資料中…
-    </div>
-  </div>
-
+  <div id="multi-content"><div class="state-msg"><div class="spinner"></div>載入中…</div></div>
 </div>
 
+<!-- ═══ Tab: 單檔ETF查詢 ═══ -->
+<div id="tab-single" class="tab-content">
+  <div class="single-controls">
+    <div class="filter-group">
+      <span class="filter-label">選擇ETF</span>
+      <select class="etf-select" id="single-etf-select">
+        <!-- filled by JS -->
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">觀察</span>
+      <div class="btn-group" id="single-period-btns">
+        <button class="btn active" data-v="1">1天</button>
+        <button class="btn" data-v="3">3天</button>
+        <button class="btn" data-v="5">5天</button>
+      </div>
+    </div>
+  </div>
+  <div id="single-content"><div class="state-msg"><div class="spinner"></div>載入中…</div></div>
+</div>
+
+<!-- ═══ Tab: Telegram推播 ═══ -->
+<div id="tab-notify" class="tab-content">
+  <div class="notify-grid">
+
+    <!-- Bot 設定 -->
+    <div class="notify-card">
+      <h3>🤖 Telegram Bot 設定</h3>
+      <div class="form-group">
+        <label class="form-label">Bot Token</label>
+        <input class="form-input" id="tg-token" type="password" placeholder="1234567890:AAF…">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Chat ID</label>
+        <input class="form-input" id="tg-chatid" type="text" placeholder="6157383703">
+      </div>
+      <div class="action-row">
+        <button class="action-btn primary" onclick="saveTgConfig()">💾 儲存設定</button>
+        <button class="action-btn" onclick="testTg()">📨 測試推播</button>
+        <span id="tg-save-status"></span>
+      </div>
+    </div>
+
+    <!-- GitHub PAT -->
+    <div class="notify-card">
+      <h3>🔄 手動更新設定</h3>
+      <div class="form-group">
+        <label class="form-label">GitHub Personal Access Token (PAT)</label>
+        <input class="form-input" id="gh-pat" type="password" placeholder="ghp_xxxxxxxxxxxx">
+        <div class="pat-hint">
+          需要申請 PAT 嗎？<a href="https://github.com/settings/tokens/new?scopes=workflow&description=etf-monitor" target="_blank">點此前往申請</a><br>
+          步驟：開啟連結 → Note 填 <code>etf-monitor</code> → 勾選 <code>workflow</code> → Generate token → 複製貼上
+        </div>
+      </div>
+      <div class="action-row">
+        <button class="action-btn primary" onclick="savePat()">💾 儲存 PAT</button>
+        <span id="pat-save-status"></span>
+      </div>
+    </div>
+
+    <!-- 樣板A -->
+    <div class="notify-card">
+      <h3>📊 樣板A：多ETF同步加碼摘要</h3>
+      <div class="form-group">
+        <label class="form-label">觀察天數</label>
+        <div class="btn-group" id="tg-a-period">
+          <button class="btn" data-v="1">1天</button>
+          <button class="btn active" data-v="3">3天</button>
+          <button class="btn" data-v="5">5天</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">最少同步家數</label>
+        <div class="btn-group" id="tg-a-min">
+          <button class="btn" data-v="2">≥2家</button>
+          <button class="btn active" data-v="3">≥3家</button>
+          <button class="btn" data-v="4">≥4家</button>
+          <button class="btn" data-v="5">≥5家</button>
+        </div>
+      </div>
+      <div class="action-row">
+        <button class="action-btn primary" onclick="sendTemplateA()">📤 立即推播</button>
+        <button class="action-btn" onclick="previewTemplateA()">👁 預覽</button>
+      </div>
+      <pre class="preview-box" id="preview-a"></pre>
+    </div>
+
+    <!-- 樣板B -->
+    <div class="notify-card">
+      <h3>🔍 樣板B：單檔ETF異動報告</h3>
+      <div class="form-group">
+        <label class="form-label">選擇要追蹤的ETF（可多選）</label>
+        <div class="etf-checks" id="tg-b-etfs">
+          <!-- filled by JS -->
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:10px">
+        <label class="form-label">觀察天數</label>
+        <div class="btn-group" id="tg-b-period">
+          <button class="btn active" data-v="1">1天</button>
+          <button class="btn" data-v="3">3天</button>
+          <button class="btn" data-v="5">5天</button>
+        </div>
+      </div>
+      <div class="action-row">
+        <button class="action-btn primary" onclick="sendTemplateB()">📤 立即推播</button>
+        <button class="action-btn" onclick="previewTemplateB()">👁 預覽</button>
+      </div>
+      <pre class="preview-box" id="preview-b"></pre>
+    </div>
+
+  </div>
+</div>
+
+</div><!-- .page -->
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
 <script>
-/* ─────────────────────── State ─────────────────────── */
+/* ══════════════════════ Constants ══════════════════════ */
+const ETF_MAP = {
+  '00981A':{ name:'主動統一台股增長', short:'統一增長' },
+  '00982A':{ name:'主動群益台灣強棒', short:'群益強棒' },
+  '00991A':{ name:'主動復華未來50',   short:'復華未來50' },
+  '00990A':{ name:'主動元大AI新經濟', short:'元大AI' },
+  '00992A':{ name:'主動群益科技創新', short:'群益科技' },
+  '00993A':{ name:'主動安聯台灣',     short:'安聯台灣' },
+  '00988A':{ name:'主動統一全球創新', short:'統一全球' },
+  '00980A':{ name:'主動野村臺灣優選', short:'野村優選' },
+  '00985A':{ name:'主動野村台灣50',   short:'野村50' },
+  '00995A':{ name:'主動中信台灣卓越', short:'中信卓越' },
+  '00984A':{ name:'主動安聯台灣高息', short:'安聯高息' },
+  '00983A':{ name:'主動中信ARK創新',  short:'中信ARK' },
+  '00987A':{ name:'主動台新優勢成長', short:'台新優勢' },
+  '00989A':{ name:'主動摩根美國科技', short:'摩根美科' },
+};
+const ETF_LIST = Object.entries(ETF_MAP).map(([code,info])=>({code,...info}));
+const REPO = 'reno99936/etf-monitor';
+
+/* ══════════════════════ State ══════════════════════ */
 const state = {
-  period: 3,
-  minCount: 3,
-  mode: 'increase',
-  sortBy: 'families',
-  dates: [],       // 可用日期列表 (YYYYMMDD)
-  cache: {},       // date -> parsed JSON
+  period:3, minCount:3, mode:'increase', sortBy:'families',
+  singleEtf: ETF_LIST[0].code, singlePeriod:1,
+  dates:[], cache:{},
 };
 
-/* ─────────────────────── Utils ─────────────────────── */
-function fmtDate(s) {
-  // YYYYMMDD -> YYYY-MM-DD
-  return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
-}
+/* ══════════════════════ Utils ══════════════════════ */
+const fmtDate = s => `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
 
 function prevTradingDays(dateStr, n) {
   const d = new Date(fmtDate(dateStr));
-  let count = 0;
-  while (count < n) {
-    d.setDate(d.getDate() - 1);
-    const w = d.getDay();
-    if (w !== 0 && w !== 6) count++;
-  }
+  let count=0;
+  while(count<n){ d.setDate(d.getDate()-1); const w=d.getDay(); if(w!==0&&w!==6) count++; }
   return d.toISOString().slice(0,10).replace(/-/g,'');
 }
 
-function fmtVal(n, unit = '') {
-  if (!n && n !== 0) return '–';
-  const abs = Math.abs(n);
-  const sign = n >= 0 ? '+' : '-';
-  if (abs >= 1e8)  return `${sign}${(abs/1e8).toFixed(2)}億${unit}`;
-  if (abs >= 1e4)  return `${sign}${(abs/1e4).toFixed(1)}萬${unit}`;
-  return `${sign}${abs.toLocaleString()}${unit}`;
+function fmtVal(n) {
+  if(!n && n!==0) return '–';
+  const abs=Math.abs(n), sign=n>=0?'+':'-';
+  if(abs>=1e8) return `${sign}${(abs/1e8).toFixed(2)}億`;
+  if(abs>=1e4) return `${sign}${(abs/1e4).toFixed(1)}萬`;
+  return `${sign}${abs.toLocaleString()}`;
 }
 
-function badgeClass(n) {
-  if (n >= 8) return 'badge-gold';
-  if (n >= 5) return 'badge-orange';
-  if (n >= 3) return 'badge-teal';
+function badgeClass(n){
+  if(n>=8) return 'badge-gold';
+  if(n>=5) return 'badge-orange';
+  if(n>=3) return 'badge-teal';
   return 'badge-purple';
 }
 
-/* ─────────────────────── Data loading ─────────────────────── */
-async function loadIndex() {
-  try {
-    const r = await fetch('data/index.json?' + Date.now());
-    if (!r.ok) return [];
-    const d = await r.json();
-    return d.dates || [];
-  } catch { return []; }
+function showToast(msg, type='success'){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className=`toast ${type} show`;
+  setTimeout(()=>el.className='toast',3200);
 }
 
-async function loadDay(dateStr) {
-  if (state.cache[dateStr]) return state.cache[dateStr];
-  try {
-    const r = await fetch(`data/${dateStr}.json`);
-    if (!r.ok) return null;
-    const d = await r.json();
-    state.cache[dateStr] = d;
+/* ══════════════════════ Data Loading ══════════════════════ */
+async function loadIndex(){
+  try{
+    const r=await fetch('data/index.json?'+Date.now());
+    if(!r.ok) return [];
+    const d=await r.json();
+    return d.dates||[];
+  }catch{ return []; }
+}
+
+async function loadDay(dateStr){
+  if(!dateStr) return null;
+  if(state.cache[dateStr]) return state.cache[dateStr];
+  try{
+    const r=await fetch(`data/${dateStr}.json`);
+    if(!r.ok) return null;
+    const d=await r.json();
+    state.cache[dateStr]=d;
     return d;
-  } catch { return null; }
+  }catch{ return null; }
 }
 
-/* ─────────────────────── Analysis ─────────────────────── */
-function analyzeChanges(todayData, compareData, mode) {
-  const stockMap = {};
+/* ══════════════════════ Analysis ══════════════════════ */
+function analyzeChanges(todayData, compareData, mode){
+  const stockMap={};
+  for(const [etfCode, etfToday] of Object.entries(todayData.etfs)){
+    const etfComp=compareData?.etfs?.[etfCode];
+    const compMap=new Map((etfComp?.holdings||[]).map(h=>[h.code,h]));
 
-  for (const [etfCode, etfToday] of Object.entries(todayData.etfs)) {
-    const etfComp = compareData?.etfs?.[etfCode];
-    const compMap = new Map((etfComp?.holdings || []).map(h => [h.code, h]));
+    for(const h of etfToday.holdings){
+      const prev=compMap.get(h.code);
+      const dW=+(h.weight-(prev?.weight||0)).toFixed(4);
+      const dShares=h.shares-(prev?.shares||0);
+      const isInc=dW>0.01, isDec=dW<-0.01;
+      if(!((mode==='increase'&&isInc)||(mode==='decrease'&&isDec))) continue;
 
-    // Check today's holdings for increases
-    for (const h of etfToday.holdings) {
-      const prev = compMap.get(h.code);
-      const dW = +(h.weight - (prev?.weight || 0)).toFixed(4);
-      const dShares = h.shares - (prev?.shares || 0);
-
-      const isIncrease = dW > 0.01;
-      const isDecrease = dW < -0.01;
-      const matches = (mode === 'increase' && isIncrease) ||
-                      (mode === 'decrease' && isDecrease);
-      if (!matches) continue;
-
-      if (!stockMap[h.code]) {
-        stockMap[h.code] = {
-          code: h.code, name: h.name,
-          price: h.price || 0,
-          etfs: [],
-          totalPct: 0, totalLots: 0, totalValue: 0,
-        };
-      }
-      const val = dShares * (h.price || 0);
-      stockMap[h.code].etfs.push({
-        etfCode, etfName: etfToday.name,
-        dPct: dW,
-        dLots: Math.round(dShares / 1000),
-        dValue: val,
-        curWeight: h.weight,
-        isNew: !prev,
-      });
-      stockMap[h.code].totalPct   += dW;
-      stockMap[h.code].totalLots  += Math.round(dShares / 1000);
-      stockMap[h.code].totalValue += val;
+      if(!stockMap[h.code]) stockMap[h.code]={
+        code:h.code, name:h.name, price:h.price||0,
+        etfs:[], totalPct:0, totalLots:0, totalValue:0,
+      };
+      const val=dShares*(h.price||0);
+      stockMap[h.code].etfs.push({etfCode, etfName:etfToday.name, dPct:dW,
+        dLots:Math.round(dShares/1000), dValue:val,
+        curWeight:h.weight, isNew:!prev});
+      stockMap[h.code].totalPct+=dW;
+      stockMap[h.code].totalLots+=Math.round(dShares/1000);
+      stockMap[h.code].totalValue+=val;
     }
 
-    // Fully exited positions (only for decrease mode)
-    if (mode === 'decrease') {
-      for (const [code, prev] of compMap) {
-        if (!etfToday.holdings.find(h => h.code === code) && prev.weight > 0.01) {
-          if (!stockMap[code]) {
-            stockMap[code] = {
-              code, name: prev.name, price: prev.price || 0,
-              etfs: [], totalPct: 0, totalLots: 0, totalValue: 0,
-            };
-          }
-          const dShares = -prev.shares;
-          const val = dShares * (prev.price || 0);
-          stockMap[code].etfs.push({
-            etfCode, etfName: etfToday.name,
-            dPct: -prev.weight,
-            dLots: Math.round(dShares / 1000),
-            dValue: val,
-            curWeight: 0,
-            isNew: false, isExited: true,
-          });
-          stockMap[code].totalPct   += -prev.weight;
-          stockMap[code].totalLots  += Math.round(dShares / 1000);
-          stockMap[code].totalValue += val;
-        }
+    // 已清倉（減持模式）
+    if(mode==='decrease'){
+      for(const [code,prev] of compMap){
+        if(etfToday.holdings.find(h=>h.code===code)||prev.weight<=0.01) continue;
+        if(!stockMap[code]) stockMap[code]={code,name:prev.name,price:prev.price||0,etfs:[],totalPct:0,totalLots:0,totalValue:0};
+        const dS=-prev.shares, val=dS*(prev.price||0);
+        stockMap[code].etfs.push({etfCode,etfName:etfToday.name,dPct:-prev.weight,
+          dLots:Math.round(dS/1000),dValue:val,curWeight:0,isNew:false,isExited:true});
+        stockMap[code].totalPct+=-prev.weight;
+        stockMap[code].totalLots+=Math.round(dS/1000);
+        stockMap[code].totalValue+=val;
       }
     }
   }
-
   return Object.values(stockMap);
 }
 
-function sortStocks(stocks) {
-  return [...stocks].sort((a, b) => {
-    const sign = state.mode === 'decrease' ? 1 : -1;
-    if (state.sortBy === 'families') return b.etfs.length - a.etfs.length;
-    if (state.sortBy === 'pct')      return sign * (a.totalPct - b.totalPct);
-    if (state.sortBy === 'value')    return sign * (a.totalValue - b.totalValue);
-    if (state.sortBy === 'lots')     return sign * (a.totalLots - b.totalLots);
+function sortStocks(stocks){
+  return [...stocks].sort((a,b)=>{
+    const sign=state.mode==='decrease'?1:-1;
+    if(state.sortBy==='families') return b.etfs.length-a.etfs.length;
+    if(state.sortBy==='pct')      return sign*(a.totalPct-b.totalPct);
+    if(state.sortBy==='value')    return sign*(a.totalValue-b.totalValue);
+    if(state.sortBy==='lots')     return sign*(a.totalLots-b.totalLots);
     return 0;
   });
 }
 
-/* ─────────────────────── Render ─────────────────────── */
-function renderBars(etfs, mode, expanded) {
-  const sorted = [...etfs].sort((a, b) => Math.abs(b.dPct) - Math.abs(a.dPct));
-  const maxAbs = Math.max(...sorted.map(e => Math.abs(e.dPct)), 0.001);
-  const shown = expanded ? sorted : sorted.slice(0, 3);
-  const cls = mode === 'increase' ? 'up fill-up' : 'down fill-down';
-
-  return shown.map(e => {
-    const pct = (Math.abs(e.dPct) / maxAbs * 100).toFixed(1);
-    const sign = e.dPct >= 0 ? '+' : '';
-    const tag = e.isNew ? '<span class="new-tag">新增</span>' :
-                e.isExited ? '<span class="new-tag" style="color:var(--red)">清倉</span>' : '';
-    return `
-    <div class="bar-row">
-      <span class="bar-etf-name" title="${e.etfName}">${e.etfName.replace('主動','').replace('主動','')}</span>
-      <div class="bar-track"><div class="bar-fill ${cls}" style="width:${pct}%"></div></div>
-      <span class="bar-val ${mode==='increase'?'up':'down'}">${sign}${e.dPct.toFixed(2)}%${tag}</span>
+/* ══════════════════════ Render: Multi-ETF ══════════════════════ */
+function renderBars(etfs, mode, expanded){
+  const sorted=[...etfs].sort((a,b)=>Math.abs(b.dPct)-Math.abs(a.dPct));
+  const maxAbs=Math.max(...sorted.map(e=>Math.abs(e.dPct)),0.001);
+  const shown=expanded?sorted:sorted.slice(0,3);
+  const fillCls=mode==='increase'?'fill-up':'fill-down';
+  const colorCls=mode==='increase'?'up':'down';
+  return shown.map(e=>{
+    const pct=(Math.abs(e.dPct)/maxAbs*100).toFixed(1);
+    const sign=e.dPct>=0?'+':'';
+    const info=ETF_MAP[e.etfCode];
+    const tag=e.isNew?'<span class="new-tag">新增</span>':
+              e.isExited?'<span class="new-tag" style="color:var(--red)">清倉</span>':'';
+    return `<div class="bar-row">
+      <span class="bar-etf-name">
+        <span class="bar-etf-short">${info?.short||e.etfName}</span>
+        <span class="bar-etf-code">${e.etfCode}</span>
+      </span>
+      <div class="bar-track"><div class="bar-fill ${fillCls}" style="width:${pct}%"></div></div>
+      <span class="bar-val ${colorCls}">${sign}${e.dPct.toFixed(2)}%${tag}</span>
     </div>`;
   }).join('');
 }
 
-function renderCard(stock, mode, dateFrom, dateTo) {
-  const n = stock.etfs.length;
-  const bc = badgeClass(n);
-  const modeClass = mode === 'increase' ? 'increase-card' : 'decrease-card';
-  const sign = stock.totalPct >= 0 ? '+' : '';
-  const colorCls = mode === 'increase' ? 'up' : 'down';
-  const maxSingle = stock.etfs.reduce((m, e) => Math.abs(e.dPct) > Math.abs(m) ? e.dPct : m, 0);
-  const maxSign = maxSingle >= 0 ? '+' : '';
+const expandState={};
+function toggleExpand(code,total){
+  expandState[code]=!expandState[code];
+  const stock=window._lastStocks?.find(s=>s.code===code);
+  if(!stock) return;
+  document.getElementById(`bars-${code}`).innerHTML=renderBars(stock.etfs,state.mode,expandState[code]);
+  document.getElementById(`ti-${code}`).textContent=expandState[code]?'▲':'▼';
+  document.getElementById(`tt-${code}`).textContent=expandState[code]?'收合':`展開全部 ${total} 家`;
+}
 
-  const hasLots  = stock.etfs.some(e => e.dLots !== 0);
-  const hasValue = stock.etfs.some(e => e.dValue !== 0);
-
-  const lotsHtml = hasLots
-    ? `<span class="metric"><span class="label">張數</span>
-       <span class="val ${colorCls}">${fmtVal(stock.totalLots, '張')}</span></span>`
-    : '';
-  const valueHtml = hasValue
-    ? `<span class="metric"><span class="label">市值</span>
-       <span class="val ${colorCls}">${fmtVal(stock.totalValue, '')}</span></span>`
-    : '';
-  const priceHtml = stock.price
-    ? `<span class="metric"><span class="label">現價</span>
-       <span class="val">$${stock.price.toLocaleString()}</span></span>`
-    : '';
-
-  const id = `card-${stock.code}`;
-  const canExpand = stock.etfs.length > 3;
-
-  return `
-  <div class="card ${modeClass}" id="${id}">
+function renderCard(stock, mode, dateFrom, dateTo){
+  const n=stock.etfs.length, bc=badgeClass(n);
+  const modeClass=mode==='increase'?'increase-card':'decrease-card';
+  const sign=stock.totalPct>=0?'+':'';
+  const colorCls=mode==='increase'?'up':'down';
+  const maxSingle=stock.etfs.reduce((m,e)=>Math.abs(e.dPct)>Math.abs(m)?e.dPct:m,0);
+  const maxSign=maxSingle>=0?'+':'';
+  const hasLots=stock.etfs.some(e=>e.dLots!==0);
+  const hasValue=stock.etfs.some(e=>e.dValue!==0);
+  const canExpand=n>3;
+  return `<div class="card ${modeClass}" id="card-${stock.code}">
     <div class="card-top">
       <div>
         <div class="stock-code">${stock.code}
-          <span style="font-size:14px;font-weight:400;color:var(--muted)">${stock.name}</span>
+          <span style="font-size:13px;font-weight:400;color:var(--muted)">${stock.name}</span>
         </div>
         <div class="stock-metrics">
-          <div class="row">
-            <span class="metric"><span class="label">合計增幅</span>
+          <div class="metrics-row">
+            <span class="metric"><span class="lbl">合計增幅</span>
               <span class="val ${colorCls}">${sign}${stock.totalPct.toFixed(2)}%</span></span>
-            <span class="metric"><span class="label">最大單筆</span>
+            <span class="metric"><span class="lbl">最大單筆</span>
               <span class="val ${colorCls}">${maxSign}${Math.abs(maxSingle).toFixed(2)}%</span></span>
           </div>
-          <div class="row" style="margin-top:2px">
-            ${lotsHtml}${valueHtml}${priceHtml}
+          <div class="metrics-row" style="margin-top:2px">
+            ${hasLots?`<span class="metric"><span class="lbl">張數</span>
+              <span class="val ${colorCls}">${fmtVal(stock.totalLots)}張</span></span>`:''}
+            ${hasValue?`<span class="metric"><span class="lbl">市值</span>
+              <span class="val ${colorCls}">${fmtVal(stock.totalValue)}</span></span>`:''}
+            ${stock.price?`<span class="metric"><span class="lbl">現價</span>
+              <span class="val">$${stock.price.toLocaleString()}</span></span>`:''}
           </div>
         </div>
       </div>
       <div class="badge ${bc}">
-        <span class="num">${n}</span>
-        <span class="lbl">家</span>
+        <span class="num">${n}</span><span class="lbl2">家</span>
       </div>
     </div>
-
-    <div class="etf-bars" id="bars-${stock.code}">
-      ${renderBars(stock.etfs, mode, false)}
-    </div>
-
-    ${canExpand ? `
-    <button class="expand-toggle" onclick="toggleExpand('${stock.code}', ${n})">
-      <span id="toggle-icon-${stock.code}">▼</span>
-      <span id="toggle-text-${stock.code}">展開全部 ${n} 家</span>
-    </button>` : ''}
-
+    <div class="etf-bars" id="bars-${stock.code}">${renderBars(stock.etfs,mode,false)}</div>
+    ${canExpand?`<button class="expand-toggle" onclick="toggleExpand('${stock.code}',${n})">
+      <span id="ti-${stock.code}">▼</span>
+      <span id="tt-${stock.code}">展開全部 ${n} 家</span>
+    </button>`:''}
     <div class="card-footer">
-      <span style="color:var(--dimmed)">
-        ${stock.etfs.filter(e=>e.isNew).length > 0
-          ? `<span class="new-tag">新進場 ${stock.etfs.filter(e=>e.isNew).length} 家</span>` : ''}
-      </span>
+      <span>${stock.etfs.filter(e=>e.isNew).length>0?
+        `<span class="new-tag">新進場 ${stock.etfs.filter(e=>e.isNew).length} 家</span>`:''}</span>
       <span>${fmtDate(dateFrom)} → ${fmtDate(dateTo)}</span>
     </div>
   </div>`;
 }
 
-/* ─────────────────────── Toggle expand ─────────────────────── */
-const expandState = {};
-function toggleExpand(code, total) {
-  expandState[code] = !expandState[code];
-  const stock = window._lastStocks?.find(s => s.code === code);
-  if (!stock) return;
-  document.getElementById(`bars-${code}`).innerHTML =
-    renderBars(stock.etfs, state.mode, expandState[code]);
-  document.getElementById(`toggle-icon-${code}`).textContent =
-    expandState[code] ? '▲' : '▼';
-  document.getElementById(`toggle-text-${code}`).textContent =
-    expandState[code] ? '收合' : `展開全部 ${total} 家`;
+async function renderMulti(){
+  const content=document.getElementById('multi-content');
+  const summaryEl=document.getElementById('summary');
+  if(!state.dates.length){
+    content.innerHTML=`<div class="state-msg"><span class="emoji">📭</span>尚無資料，請先執行資料抓取。</div>`;
+    summaryEl.textContent='無資料'; return;
+  }
+  content.innerHTML=`<div class="state-msg"><div class="spinner"></div>分析中…</div>`;
+  const todayStr=state.dates[0];
+  const compareStr=prevTradingDays(todayStr,state.period);
+  const [todayData,compareData]=await Promise.all([loadDay(todayStr),loadDay(compareStr)]);
+  if(!todayData){
+    content.innerHTML=`<div class="state-msg"><span class="emoji">⚠️</span>資料載入失敗</div>`; return;
+  }
+  document.getElementById('data-date').textContent=`資料日期：${todayData.date}`;
+  document.getElementById('etf-count').textContent=`追蹤 ${Object.keys(todayData.etfs).length} 檔 ETF`;
+  const all=analyzeChanges(todayData,compareData,state.mode);
+  const filtered=all.filter(s=>s.etfs.length>=state.minCount);
+  const sorted=sortStocks(filtered);
+  window._lastStocks=sorted;
+  window._todayData=todayData;
+  window._compareData=compareData;
+  const modeLabel=state.mode==='increase'?'增持':'減持';
+  const modeColor=state.mode==='increase'?'green':'red';
+  const compNote=compareData?`（對比 ${fmtDate(compareStr)}）`:'（無歷史對比）';
+  summaryEl.innerHTML=`過去 <span class="hl blue">${state.period} 天</span>${compNote}，找到
+    <span class="hl ${modeColor}">${filtered.length} 檔</span>個股被
+    <span class="hl">${state.minCount} 家</span>以上投信同步
+    <span class="hl ${modeColor}">${modeLabel}</span>
+    <span style="color:var(--dimmed);font-size:12px">（已篩選 ${Object.keys(todayData.etfs).length} 檔主動 ETF）</span>`;
+  if(!sorted.length){
+    content.innerHTML=`<div class="state-msg"><span class="emoji">🔍</span>目前條件無符合個股，試試降低「最少家數」。</div>`; return;
+  }
+  content.innerHTML=`<div class="cards-grid">${sorted.map(s=>renderCard(s,state.mode,compareStr||todayStr,todayStr)).join('')}</div>`;
 }
 
-/* ─────────────────────── Main render ─────────────────────── */
-async function render() {
-  const content = document.getElementById('content');
-  const summary = document.getElementById('summary');
+/* ══════════════════════ Render: Single ETF ══════════════════════ */
+function rankBadge(i){
+  const cls=i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'rank-n';
+  return `<span class="rank-num ${cls}">${i+1}</span>`;
+}
 
-  if (!state.dates.length) {
-    content.innerHTML = `<div class="state-msg">
-      <span class="emoji">📭</span>
-      尚無資料。請先執行 <code>python fetch_data.py</code> 產生持股快照。
+async function renderSingle(){
+  const content=document.getElementById('single-content');
+  if(!state.dates.length){
+    content.innerHTML=`<div class="state-msg"><span class="emoji">📭</span>尚無資料</div>`; return;
+  }
+  content.innerHTML=`<div class="state-msg"><div class="spinner"></div>分析中…</div>`;
+  const todayStr=state.dates[0];
+  const compareStr=prevTradingDays(todayStr,state.singlePeriod);
+  const [todayData,compareData]=await Promise.all([loadDay(todayStr),loadDay(compareStr)]);
+  if(!todayData){
+    content.innerHTML=`<div class="state-msg"><span class="emoji">⚠️</span>資料載入失敗</div>`; return;
+  }
+  const etfCode=state.singleEtf;
+  const etfToday=todayData.etfs[etfCode];
+  if(!etfToday||!etfToday.holdings.length){
+    content.innerHTML=`<div class="state-msg"><span class="emoji">📭</span>${etfCode} 目前無持股資料</div>`; return;
+  }
+  const etfComp=compareData?.etfs?.[etfCode];
+  const todayMap=new Map(etfToday.holdings.map(h=>[h.code,h]));
+  const compMap=new Map((etfComp?.holdings||[]).map(h=>[h.code,h]));
+
+  const newHolds=etfToday.holdings.filter(h=>!compMap.has(h.code));
+  const removed=[...compMap.values()].filter(h=>!todayMap.has(h.code));
+  const changes=[];
+  for(const[code,th] of todayMap){
+    const prev=compMap.get(code);
+    if(!prev) continue;
+    const dW=+(th.weight-prev.weight).toFixed(4);
+    const dLots=th.lots-prev.lots;
+    changes.push({...th,dW,dLots,prevLots:prev.lots,prevW:prev.weight});
+  }
+  const inc=changes.filter(c=>c.dLots>0||c.dW>0.01).sort((a,b)=>b.dLots-a.dLots);
+  const dec=changes.filter(c=>c.dLots<0||c.dW<-0.01).sort((a,b)=>a.dLots-b.dLots);
+
+  function holdingRow(h,i,showChange){
+    const signL=h.dLots>=0?'+':'', signW=h.dW>=0?'+':'';
+    const changeHtml=showChange?`<span class="h-change ${h.dLots>=0?'up':'down'}">
+      ${signL}${h.dLots.toLocaleString()}張<br>
+      <span style="font-size:10px">${signW}${h.dW.toFixed(2)}%</span></span>`:'';
+    return `<div class="holding-row">
+      ${rankBadge(i)}
+      <span class="h-code">${h.code}</span>
+      <span class="h-name">${h.name}</span>
+      <span class="h-lots">${h.lots.toLocaleString()}張</span>
+      <span class="h-weight">${h.weight}%</span>
+      ${changeHtml}
     </div>`;
-    summary.textContent = '無資料';
-    return;
   }
 
-  content.innerHTML = `<div class="state-msg"><div class="spinner"></div>分析中…</div>`;
-
-  const todayStr   = state.dates[0];
-  const compareStr = prevTradingDays(todayStr, state.period);
-
-  const [todayData, compareData] = await Promise.all([
-    loadDay(todayStr),
-    loadDay(compareStr),
-  ]);
-
-  if (!todayData) {
-    content.innerHTML = `<div class="state-msg">
-      <span class="emoji">⚠️</span>最新資料載入失敗，請稍後重試。</div>`;
-    return;
-  }
-
-  // Update header meta
-  document.getElementById('data-date').textContent = `資料日期：${todayData.date}`;
-  const etfCount = Object.keys(todayData.etfs).length;
-  document.getElementById('etf-count').textContent = `共追蹤 ${etfCount} 檔 ETF`;
-
-  const allStocks  = analyzeChanges(todayData, compareData, state.mode);
-  const filtered   = allStocks.filter(s => s.etfs.length >= state.minCount);
-  const sorted     = sortStocks(filtered);
-  window._lastStocks = sorted;
-
-  // Summary
-  const modeLabel = state.mode === 'increase' ? '增持' : '減持';
-  const modeColor = state.mode === 'increase' ? 'green' : 'red';
-  const compLabel = compareData ? `（對比 ${fmtDate(compareStr)}）` : '（無歷史資料可比較）';
-
-  summary.innerHTML = `
-    過去 <span class="hl blue">${state.period} 天</span> 內${compLabel}，
-    找到 <span class="hl ${modeColor}">${filtered.length} 檔</span>
-    個股被 <span class="hl">${state.minCount} 家</span>
-    以上投信同步<span class="hl ${modeColor}">${modeLabel}</span>
-    &nbsp;<span style="color:var(--dimmed);font-size:12px">（已篩選 ${etfCount} 檔主動 ETF）</span>`;
-
-  if (!sorted.length) {
-    content.innerHTML = `<div class="state-msg">
-      <span class="emoji">🔍</span>
-      目前條件下沒有符合的個股，試試調低「最少家數」或換觀察天數。
-    </div>`;
-    return;
-  }
-
-  content.innerHTML = `<div class="cards-grid">
-    ${sorted.map(s => renderCard(s, state.mode, compareStr || todayStr, todayStr)).join('')}
+  const etfInfo=ETF_MAP[etfCode];
+  let html=`<div style="margin-bottom:6px;color:var(--muted);font-size:13px">
+    ${etfCode} ${etfInfo?.name||''} ｜ 對比 ${fmtDate(compareStr)} → ${fmtDate(todayStr)}
   </div>`;
+
+  // 新增
+  if(newHolds.length){
+    html+=`<div class="single-section"><div class="section-title">🌟 新增持股（${newHolds.length}檔）</div>
+    <div class="holding-list">${newHolds.map((h,i)=>`<div class="holding-row">
+      ${rankBadge(i)}<span class="h-code">${h.code}</span><span class="h-name">${h.name}</span>
+      <span class="h-lots">${h.lots.toLocaleString()}張</span><span class="h-weight">${h.weight}%</span>
+      <span class="new-tag">新增</span></div>`).join('')}</div></div>`;
+  }
+  // 剔除
+  if(removed.length){
+    html+=`<div class="single-section"><div class="section-title">🗑 剔除持股（${removed.length}檔）</div>
+    <div class="holding-list">${removed.map((h,i)=>`<div class="holding-row">
+      ${rankBadge(i)}<span class="h-code">${h.code}</span><span class="h-name">${h.name}</span>
+      <span class="h-lots">${h.lots.toLocaleString()}張</span><span class="h-weight">${h.weight}%</span>
+      <span class="new-tag" style="color:var(--red)">清倉</span></div>`).join('')}</div></div>`;
+  }
+  // 增持前5
+  if(inc.length){
+    html+=`<div class="single-section"><div class="section-title">📈 增加持股前五名</div>
+    <div class="holding-list">${inc.slice(0,5).map((h,i)=>holdingRow(h,i,true)).join('')}</div></div>`;
+  } else {
+    html+=`<div class="single-section"><div class="section-title">📈 增加持股</div><div class="no-change">無增持記錄</div></div>`;
+  }
+  // 減持前5
+  if(dec.length){
+    html+=`<div class="single-section"><div class="section-title">📉 減少持股前五名</div>
+    <div class="holding-list">${dec.slice(0,5).map((h,i)=>holdingRow(h,i,true)).join('')}</div></div>`;
+  } else {
+    html+=`<div class="single-section"><div class="section-title">📉 減少持股</div><div class="no-change">無減持記錄</div></div>`;
+  }
+
+  content.innerHTML=html;
 }
 
-/* ─────────────────────── Event listeners ─────────────────────── */
-function bindBtnGroup(groupId, key) {
-  document.getElementById(groupId).addEventListener('click', e => {
-    const btn = e.target.closest('.btn');
-    if (!btn) return;
-    document.querySelectorAll(`#${groupId} .btn`).forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    state[key] = +btn.dataset.v;
-    render();
+/* ══════════════════════ Telegram ══════════════════════ */
+function getTgConfig(){
+  return{
+    token: localStorage.getItem('tg_token')||'',
+    chatId: localStorage.getItem('tg_chat_id')||'',
+  };
+}
+
+function saveTgConfig(){
+  const token=document.getElementById('tg-token').value.trim();
+  const chatId=document.getElementById('tg-chatid').value.trim();
+  if(!token||!chatId){ showToast('請填入 Token 和 Chat ID','error'); return; }
+  localStorage.setItem('tg_token',token);
+  localStorage.setItem('tg_chat_id',chatId);
+  document.getElementById('tg-token').classList.add('saved');
+  document.getElementById('tg-chatid').classList.add('saved');
+  document.getElementById('tg-save-status').innerHTML='<span class="status-badge status-ok">✓ 已儲存</span>';
+  showToast('Telegram 設定已儲存');
+}
+
+async function sendTg(text){
+  const{token,chatId}=getTgConfig();
+  if(!token||!chatId){ showToast('請先儲存 Bot Token 和 Chat ID','error'); return false; }
+  try{
+    const r=await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({chat_id:chatId,text,parse_mode:'HTML'}),
+    });
+    const d=await r.json();
+    if(d.ok){ showToast('✅ Telegram 推播成功！'); return true; }
+    showToast(`推播失敗：${d.description}`,'error'); return false;
+  }catch(e){ showToast(`推播失敗：${e.message}`,'error'); return false; }
+}
+
+async function testTg(){
+  await sendTg('✅ ETF監控系統測試訊息\n設定正確，推播正常！');
+}
+
+function buildTemplateA(period, minCount){
+  if(!window._todayData) return '請先載入多ETF同步分頁的資料';
+  const stocks=analyzeChanges(window._todayData,window._compareData,'increase');
+  const filtered=stocks.filter(s=>s.etfs.length>=minCount);
+  filtered.sort((a,b)=>b.etfs.length-a.etfs.length);
+  const nums=['①','②','③','④','⑤'];
+  let msg=`📊 多家投信同步加碼 ${window._todayData.date}\n\n`;
+  msg+=`過去${period}天，${filtered.length}檔個股被${minCount}家以上投信同步增持\n\n`;
+  if(filtered.length){
+    msg+=`📈 增持家數 TOP5：\n`;
+    filtered.slice(0,5).forEach((s,i)=>{
+      const lotsStr=s.totalLots?`${s.totalLots>=0?'+':''}${s.totalLots.toLocaleString()}張`:'';
+      const val=s.totalValue;
+      const valStr=val>=1e8?`折合市值+${(val/1e8).toFixed(2)}億`:val>=1e4?`折合市值+${(val/1e4).toFixed(1)}萬`:'';
+      const top3=([...s.etfs].sort((a,b)=>b.dPct-a.dPct).slice(0,3))
+        .map(e=>`${ETF_MAP[e.etfCode]?.short||e.etfName} ${e.etfCode}`).join('｜');
+      msg+=`${nums[i]} ${s.name} (${s.code})  ${s.etfs.length}家\n`;
+      if(lotsStr||valStr) msg+=`   合計 ${[lotsStr,valStr].filter(Boolean).join('｜')}\n`;
+      msg+=`   增持排序前三｜${top3}\n\n`;
+    });
+  }
+  const dec=analyzeChanges(window._todayData,window._compareData,'decrease')
+    .filter(s=>s.etfs.length>=minCount).sort((a,b)=>b.etfs.length-a.etfs.length);
+  if(dec.length){
+    msg+=`📉 減持家數 TOP3：\n`;
+    dec.slice(0,3).forEach((s,i)=>{ msg+=`${nums[i]} ${s.name} (${s.code})  ${s.etfs.length}家\n`; });
+  }
+  return msg;
+}
+
+function buildTemplateB(period){
+  if(!window._todayData) return '請先載入多ETF同步分頁的資料';
+  const selected=getSelectedBEtfs();
+  if(!selected.length) return '請選擇至少一檔 ETF';
+  const msgs=[];
+  const todayStr=state.dates[0];
+  const compareStr=prevTradingDays(todayStr,period);
+  for(const code of selected){
+    const etfT=window._todayData.etfs[code];
+    const etfC=window._compareData?.etfs?.[code];
+    if(!etfT||!etfT.holdings.length){ msgs.push(`${code}：無資料`); continue; }
+    const tMap=new Map(etfT.holdings.map(h=>[h.code,h]));
+    const cMap=new Map((etfC?.holdings||[]).map(h=>[h.code,h]));
+    let m=`📅 ${window._todayData.date} ${code} ${ETF_MAP[code]?.name||''}\n\n`;
+    const newH=etfT.holdings.filter(h=>!cMap.has(h.code));
+    const rmvd=[...cMap.values()].filter(h=>!tMap.has(h.code));
+    if(newH.length){
+      m+=`🌟 新增持股（${newH.length}檔）：\n`;
+      newH.forEach(h=>{ m+=`• ${h.name}（${h.code}）${h.lots.toLocaleString()}張｜${h.weight}%\n`; });
+      m+='\n';
+    }
+    if(rmvd.length){
+      m+=`🗑 剔除持股（${rmvd.length}檔）：\n`;
+      m+=rmvd.map(h=>`• ${h.name}（${h.code}）`).join('｜')+'\n\n';
+    }
+    const changes=[];
+    for(const[c,th] of tMap){
+      const prev=cMap.get(c); if(!prev) continue;
+      const dW=+(th.weight-prev.weight).toFixed(4), dLots=th.lots-prev.lots;
+      changes.push({...th,dW,dLots});
+    }
+    const inc=changes.filter(c=>c.dLots>0||c.dW>0.01).sort((a,b)=>b.dLots-a.dLots);
+    const dec=changes.filter(c=>c.dLots<0||c.dW<-0.01).sort((a,b)=>a.dLots-b.dLots);
+    if(inc.length){
+      m+=`📈 增加持股前五名：\n`;
+      inc.slice(0,5).forEach(h=>{
+        const sl=h.dLots>=0?'+':'', sw=h.dW>=0?'+':'';
+        m+=`• ${h.name}（${h.code}）\n  └ ${h.lots.toLocaleString()}張（${sl}${h.dLots.toLocaleString()}）｜${h.weight}%（${sw}${h.dW.toFixed(2)}%）\n`;
+      });
+      m+='\n';
+    }
+    if(dec.length){
+      m+=`📉 減少持股前五名：\n`;
+      dec.slice(0,5).forEach(h=>{
+        const sl=h.dLots>=0?'+':'', sw=h.dW>=0?'+':'';
+        m+=`• ${h.name}（${h.code}）\n  └ ${h.lots.toLocaleString()}張（${sl}${h.dLots.toLocaleString()}）｜${h.weight}%（${sw}${h.dW.toFixed(2)}%）\n`;
+      });
+    }
+    msgs.push(m);
+  }
+  return msgs.join('\n────────────────\n\n');
+}
+
+function getSelectedBEtfs(){
+  return ETF_LIST.filter(e=>document.getElementById(`chk-${e.code}`)?.checked).map(e=>e.code);
+}
+
+function getTgPeriod(groupId){ return +document.querySelector(`#${groupId} .btn.active`)?.dataset.v||3; }
+function getTgMin(groupId){    return +document.querySelector(`#${groupId} .btn.active`)?.dataset.v||3; }
+
+async function sendTemplateA(){
+  const period=getTgPeriod('tg-a-period'), min=getTgMin('tg-a-min');
+  const msg=buildTemplateA(period,min);
+  await sendTg(msg);
+}
+async function sendTemplateB(){
+  const period=getTgPeriod('tg-b-period');
+  const msg=buildTemplateB(period);
+  await sendTg(msg);
+}
+function previewTemplateA(){
+  const period=getTgPeriod('tg-a-period'), min=getTgMin('tg-a-min');
+  const el=document.getElementById('preview-a');
+  el.textContent=buildTemplateA(period,min);
+  el.style.display=el.style.display==='none'?'block':'none';
+}
+function previewTemplateB(){
+  const period=getTgPeriod('tg-b-period');
+  const el=document.getElementById('preview-b');
+  el.textContent=buildTemplateB(period);
+  el.style.display=el.style.display==='none'?'block':'none';
+}
+
+/* ══════════════════════ GitHub Actions trigger ══════════════════════ */
+function savePat(){
+  const pat=document.getElementById('gh-pat').value.trim();
+  if(!pat||!pat.startsWith('ghp_')&&!pat.startsWith('github_pat_')){
+    showToast('PAT 格式不正確，應以 ghp_ 開頭','error'); return;
+  }
+  localStorage.setItem('gh_pat',pat);
+  document.getElementById('gh-pat').classList.add('saved');
+  document.getElementById('pat-save-status').innerHTML='<span class="status-badge status-ok">✓ 已儲存</span>';
+  showToast('GitHub PAT 已儲存');
+}
+
+async function triggerUpdate(){
+  const pat=localStorage.getItem('gh_pat')||'';
+  if(!pat){
+    const el=document.querySelector('[data-tab="notify"]');
+    el?.click();
+    showToast('請先在「Telegram推播」分頁設定 GitHub PAT','error'); return;
+  }
+  const btn=document.getElementById('update-btn');
+  btn.classList.add('loading'); btn.textContent='⏳ 更新中…';
+  try{
+    const r=await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/update.yml/dispatches`,{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${pat}`,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},
+      body:JSON.stringify({ref:'main'}),
+    });
+    if(r.status===204){
+      showToast('✅ 已觸發 GitHub Actions！約90秒後資料更新，請稍候重新整理頁面。');
+      setTimeout(()=>{ btn.classList.remove('loading'); btn.textContent='🔄 手動更新'; },90000);
+    } else {
+      const d=await r.json().catch(()=>({}));
+      showToast(`觸發失敗：${d.message||r.status}，請確認 PAT 有 workflow 權限`,'error');
+      btn.classList.remove('loading'); btn.textContent='🔄 手動更新';
+    }
+  }catch(e){
+    showToast(`觸發失敗：${e.message}`,'error');
+    btn.classList.remove('loading'); btn.textContent='🔄 手動更新';
+  }
+}
+
+/* ══════════════════════ Tab switching ══════════════════════ */
+function switchTab(tabId){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tabId));
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.toggle('active',c.id===`tab-${tabId}`));
+  if(tabId==='single') renderSingle();
+}
+
+/* ══════════════════════ Init UI elements ══════════════════════ */
+function initStaticUI(){
+  // ETF selector
+  const sel=document.getElementById('single-etf-select');
+  ETF_LIST.forEach(e=>{
+    const opt=document.createElement('option');
+    opt.value=e.code; opt.textContent=`${e.code} ${e.short}`;
+    sel.appendChild(opt);
+  });
+
+  // Telegram B ETF checkboxes
+  const container=document.getElementById('tg-b-etfs');
+  ETF_LIST.forEach(e=>{
+    container.innerHTML+=`<label class="etf-check-item">
+      <input type="checkbox" id="chk-${e.code}" checked>
+      <span><span class="etf-check-code">${e.code}</span><br>
+        <span class="etf-check-name">${e.short}</span></span>
+    </label>`;
+  });
+
+  // Restore saved values
+  const savedToken=localStorage.getItem('tg_token');
+  const savedChat=localStorage.getItem('tg_chat_id');
+  const savedPat=localStorage.getItem('gh_pat');
+  if(savedToken){ document.getElementById('tg-token').value=savedToken; document.getElementById('tg-token').classList.add('saved'); }
+  if(savedChat){ document.getElementById('tg-chatid').value=savedChat; document.getElementById('tg-chatid').classList.add('saved'); }
+  if(savedPat){ document.getElementById('gh-pat').value=savedPat; document.getElementById('gh-pat').classList.add('saved'); }
+  if(savedToken&&savedChat) document.getElementById('tg-save-status').innerHTML='<span class="status-badge status-ok">✓ 已儲存</span>';
+  if(savedPat) document.getElementById('pat-save-status').innerHTML='<span class="status-badge status-ok">✓ 已儲存</span>';
+}
+
+/* ══════════════════════ Event listeners ══════════════════════ */
+function bindBtnGroup(id, key, cb){
+  document.getElementById(id).addEventListener('click', e=>{
+    const b=e.target.closest('.btn'); if(!b) return;
+    document.querySelectorAll(`#${id} .btn`).forEach(x=>x.classList.remove('active'));
+    b.classList.add('active'); state[key]=+b.dataset.v; cb?.();
   });
 }
 
-document.getElementById('mode-toggle').addEventListener('click', e => {
-  const btn = e.target.closest('.mode-btn');
-  if (!btn) return;
-  document.querySelectorAll('#mode-toggle .mode-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  state.mode = btn.dataset.v;
-  render();
+document.querySelectorAll('.tab-btn').forEach(b=>{
+  b.addEventListener('click',()=>switchTab(b.dataset.tab));
+});
+document.getElementById('mode-toggle').addEventListener('click', e=>{
+  const b=e.target.closest('.mode-btn'); if(!b) return;
+  document.querySelectorAll('#mode-toggle .mode-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); state.mode=b.dataset.v; renderMulti();
+});
+document.getElementById('sort-select').addEventListener('change', e=>{
+  state.sortBy=e.target.value; renderMulti();
+});
+document.getElementById('single-etf-select').addEventListener('change', e=>{
+  state.singleEtf=e.target.value; renderSingle();
 });
 
-document.getElementById('sort-select').addEventListener('change', e => {
-  state.sortBy = e.target.value;
-  render();
-});
+bindBtnGroup('period-btns','period',renderMulti);
+bindBtnGroup('mincount-btns','minCount',renderMulti);
+bindBtnGroup('single-period-btns','singlePeriod',renderSingle);
 
-bindBtnGroup('period-btns',   'period');
-bindBtnGroup('mincount-btns', 'minCount');
-
-/* ─────────────────────── Init ─────────────────────── */
-(async () => {
-  state.dates = await loadIndex();
-  await render();
+/* ══════════════════════ Init ══════════════════════ */
+(async()=>{
+  initStaticUI();
+  state.dates=await loadIndex();
+  await renderMulti();
 })();
 </script>
 </body>
