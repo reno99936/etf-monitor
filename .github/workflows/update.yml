@@ -1,0 +1,37 @@
+name: 每日更新ETF持股
+
+on:
+  schedule:
+    - cron: '0 10 * * 1-5'   # UTC 10:00 = 台北 18:00，週一至週五
+  workflow_dispatch:           # 允許手動觸發
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch ETF holdings
+        run: python fetch_data.py
+
+      - name: Commit and push data
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git add data/
+          git diff --staged --quiet || git commit -m "data: 更新持股快照 $(TZ='Asia/Taipei' date '+%Y-%m-%d %H:%M')"
+          git push
