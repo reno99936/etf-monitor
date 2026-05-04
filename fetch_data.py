@@ -46,7 +46,13 @@ HEADERS = {
 
 
 def fetch_moneydj_holdings(etf_code: str) -> list[dict]:
-    """從 MoneyDJ 抓取 ETF 持股明細（basic0007 頁面）"""
+    """從 MoneyDJ 抓取 ETF 持股明細（basic0007 頁面）
+
+    實際表格格式（class="datalist"）：
+      欄1：個股名稱  → 如「台積電(2330.TW)」
+      欄2：投資比例(%) → 如「8.99」（無%符號）
+      欄3：持有股數  → 如「10,039,000.00」
+    """
     url = (
         "https://www.moneydj.com/etf/x/basic/basic0007.xdjhtm"
         f"?etfid={etf_code.lower()}.tw"
@@ -56,13 +62,21 @@ def fetch_moneydj_holdings(etf_code: str) -> list[dict]:
         r.encoding = "utf-8"
         soup = BeautifulSoup(r.text, "lxml")
 
-        # 找到含有「投資比例」或「持有股數」的表格
+        # 找 class="datalist" 且標題含「個股名稱」的表格
         target_table = None
-        for table in soup.find_all("table"):
-            txt = table.get_text()
-            if "投資比例" in txt or "持有股數" in txt:
+        for table in soup.find_all("table", class_="datalist"):
+            header = table.find("tr")
+            if header and "個股名稱" in header.get_text():
                 target_table = table
                 break
+
+        # 備用：找含「個股名稱」的任意表格
+        if not target_table:
+            for table in soup.find_all("table"):
+                header = table.find("tr")
+                if header and "個股名稱" in header.get_text():
+                    target_table = table
+                    break
 
         if not target_table:
             print(f"    ⚠  找不到持股表格")
@@ -73,42 +87,43 @@ def fetch_moneydj_holdings(etf_code: str) -> list[dict]:
 
         for row in rows[1:]:  # 略過標題列
             cells = [td.get_text(strip=True) for td in row.find_all("td")]
-            if len(cells) < 3:
+            if len(cells) < 2:
                 continue
 
-            code, name, shares, weight = "", "", 0, 0.0
+            name_cell = cells[0]   # 如「台積電(2330.TW)」
 
-            for i, cell in enumerate(cells):
-                # 股票代號：4-6位數字
-                if re.match(r"^\d{4,6}$", cell):
-                    code = cell
-                    if i + 1 < len(cells):
-                        name = cells[i + 1]
-                    continue
+            # 從括號中取出股票代號，格式：(XXXX.TW) 或 (XXXXXX.TW)
+            code_match = re.search(r"\((\d{4,6})\.\w+\)", name_cell)
+            if not code_match:
+                continue
+            code = code_match.group(1)
 
-                # 持有股數：超過10萬、無小數點
-                clean = cell.replace(",", "").replace(" ", "")
-                if clean.isdigit() and int(clean) > 100_000:
-                    shares = int(clean)
-                    continue
+            # 取括號前面的股票名稱
+            name = name_cell[: name_cell.rfind("(")].strip()
 
-                # 投資比例：有%、介於0~30
-                if "%" in cell:
-                    try:
-                        val = float(cell.replace("%", "").strip())
-                        if 0 < val < 30:
-                            weight = val
-                    except ValueError:
-                        pass
+            # 投資比例：cells[1]，如「8.99」（無%）
+            weight = 0.0
+            try:
+                weight = float(cells[1].replace(",", "").replace("%", "").strip())
+            except ValueError:
+                pass
 
-            if code and weight > 0:
+            # 持有股數：cells[2]，如「10,039,000.00」
+            shares = 0
+            if len(cells) >= 3:
+                try:
+                    shares = int(float(cells[2].replace(",", "").strip()))
+                except ValueError:
+                    pass
+
+            if weight > 0:
                 holdings.append(
                     {
                         "code": code,
                         "name": name,
                         "shares": shares,
                         "lots": shares // 1000,
-                        "weight": weight,
+                        "weight": round(weight, 4),
                         "price": 0.0,
                         "value": 0.0,
                     }
