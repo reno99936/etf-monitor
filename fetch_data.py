@@ -133,7 +133,7 @@ def fetch_moneydj_holdings(etf_code: str) -> list[dict]:
                 except ValueError:
                     pass
 
-            if weight > 0:
+            if shares > 0:
                 holdings.append(
                     {
                         "code": code,
