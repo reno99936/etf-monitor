@@ -96,7 +96,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 
 /* ── ETF bar rows ── */
 .etf-bars{margin-top:13px}
-.bar-row{display:grid;grid-template-columns:130px 1fr 95px;align-items:center;gap:8px;padding:4px 0}
+.bar-row{display:grid;grid-template-columns:130px 90px 1fr;align-items:center;gap:8px;padding:4px 0}
 .bar-etf-name{font-size:13px;color:var(--muted);line-height:1.3;overflow:hidden}
 .bar-etf-short{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
 .bar-etf-code{color:var(--dimmed);font-size:12px;display:block}
@@ -105,7 +105,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 .fill-up{background:linear-gradient(90deg,#2ea043,var(--green))}
 .fill-down{background:linear-gradient(90deg,#b91c1c,var(--red))}
 .fill-teal{background:linear-gradient(90deg,#1a7a4a,var(--teal))}
-.bar-val{font-size:13px;font-weight:600;text-align:right}
+.bar-val{font-size:13px;font-weight:600;text-align:left;white-space:nowrap}
 .expand-toggle{margin-top:9px;background:transparent;border:none;color:var(--blue);font-size:14px;cursor:pointer;padding:3px 0;display:flex;align-items:center;gap:4px}
 .expand-toggle:hover{text-decoration:underline}
 .card-footer{margin-top:13px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--dimmed)}
@@ -173,7 +173,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 .toast.success{border-color:var(--green);color:var(--green)}
 .toast.error{border-color:var(--red);color:var(--red)}
 
-@media(max-width:760px){.bar-row{grid-template-columns:95px 1fr 68px}.holding-row{grid-template-columns:34px 74px 1fr auto}}
+@media(max-width:760px){.bar-row{grid-template-columns:90px 68px 1fr}.holding-row{grid-template-columns:34px 74px 1fr auto}}
 </style>
 </head>
 <body>
@@ -580,8 +580,8 @@ function renderBars(etfs, mode, expanded){
         <span class="bar-etf-short">${info?.short||e.etfName}</span>
         <span class="bar-etf-code">${e.etfCode}</span>
       </span>
-      <div class="bar-track"><div class="bar-fill ${fillCls}" style="width:${pct}%"></div></div>
       <span class="bar-val ${colorCls}">${sign}${e.dPct.toFixed(2)}%${tag}</span>
+      <div class="bar-track"><div class="bar-fill ${fillCls}" style="width:${pct}%"></div></div>
     </div>`;
   }).join('');
 }
@@ -667,8 +667,8 @@ function renderNewExitView(stocks, mode){
             <span class="bar-etf-short">${info?.short||e.etfCode}</span>
             <span class="bar-etf-code">${e.etfCode}</span>
           </span>
-          <div class="bar-track"><div class="bar-fill fill-teal" style="width:${pct}%"></div></div>
           <span class="bar-val up">${e.lots.toLocaleString()}張</span>
+          <div class="bar-track"><div class="bar-fill fill-teal" style="width:${pct}%"></div></div>
         </div>`;
       }).join('');
     } else {
@@ -679,8 +679,8 @@ function renderNewExitView(stocks, mode){
             <span class="bar-etf-short">${info?.short||e.etfCode}</span>
             <span class="bar-etf-code">${e.etfCode}</span>
           </span>
-          <div class="bar-track"><div class="bar-fill fill-down" style="width:100%"></div></div>
           <span class="bar-val down">出清</span>
+          <div class="bar-track"><div class="bar-fill fill-down" style="width:100%"></div></div>
         </div>`;
       }).join('');
     }
