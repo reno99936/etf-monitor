@@ -467,7 +467,7 @@ async function loadDay(dateStr){
   if(!dateStr) return null;
   if(state.cache[dateStr]) return state.cache[dateStr];
   try{
-    const r=await fetch(`data/${dateStr}.json`);
+    const r=await fetch(`data/${dateStr}.json?${Date.now()}`);
     if(!r.ok) return null;
     const d=await r.json();
     state.cache[dateStr]=d;
