@@ -61,7 +61,7 @@ def load_config() -> dict:
 
 
 def fetch_moneydj_holdings(etf_code: str) -> list[dict]:
-    """從 MoneyDJ 抓取 ETF 持股明細（basic0007 頁面）
+    """從 MoneyDJ 抓取 ETF 全部持股明細（Basic0007B 全部持股頁面）
 
     實際表格格式（class="datalist"）：
       欄1：個股名稱  → 如「台積電(2330.TW)」
@@ -69,8 +69,8 @@ def fetch_moneydj_holdings(etf_code: str) -> list[dict]:
       欄3：持有股數  → 如「10,039,000.00」
     """
     url = (
-        "https://www.moneydj.com/etf/x/basic/basic0007.xdjhtm"
-        f"?etfid={etf_code.lower()}.tw"
+        "https://www.moneydj.com/ETF/X/Basic/Basic0007B.xdjhtm"
+        f"?etfid={etf_code.upper()}.TW"
     )
     try:
         r = requests.get(url, headers=HEADERS, timeout=25)
