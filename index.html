@@ -41,7 +41,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 .btn{padding:5px 11px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:12px;transition:all .15s;white-space:nowrap}
 .btn:hover{border-color:var(--blue);color:var(--text)}
 .btn.active{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
-.mode-toggle{display:flex;border:1px solid var(--border);border-radius:20px;overflow:hidden}
+.mode-toggle{display:flex;border:1px solid var(--border);border-radius:20px;overflow:hidden;transition:opacity .2s}
+.mode-toggle.dimmed{opacity:.35;pointer-events:none}
 .mode-btn{padding:5px 13px;background:transparent;border:none;cursor:pointer;font-size:12px;color:var(--muted);transition:all .15s}
 .mode-btn.active.increase{background:var(--green-dim);color:var(--green);font-weight:600}
 .mode-btn.active.decrease{background:var(--red-dim);color:var(--red);font-weight:600}
@@ -75,6 +76,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 .card:hover{border-color:#444c56;box-shadow:0 4px 16px rgba(0,0,0,.3)}
 .card.increase-card{border-left:3px solid var(--green)}
 .card.decrease-card{border-left:3px solid var(--red)}
+.card.new-card{border-left:3px solid var(--teal)}
+.card.exit-card{border-left:3px solid var(--red)}
 .card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:11px}
 .stock-code{font-size:17px;font-weight:700;line-height:1}
 .stock-name-sub{font-size:13px;color:var(--muted);margin-top:2px}
@@ -93,7 +96,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 
 /* ── ETF bar rows ── */
 .etf-bars{margin-top:11px}
-.bar-row{display:grid;grid-template-columns:110px 1fr 64px;align-items:center;gap:7px;padding:3px 0}
+.bar-row{display:grid;grid-template-columns:110px 1fr 80px;align-items:center;gap:7px;padding:3px 0}
 .bar-etf-name{font-size:11px;color:var(--muted);line-height:1.3;overflow:hidden}
 .bar-etf-short{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
 .bar-etf-code{color:var(--dimmed);font-size:10px;display:block}
@@ -101,6 +104,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 .bar-fill{height:100%;border-radius:3px;transition:width .6s cubic-bezier(.25,.8,.25,1)}
 .fill-up{background:linear-gradient(90deg,#2ea043,var(--green))}
 .fill-down{background:linear-gradient(90deg,#b91c1c,var(--red))}
+.fill-teal{background:linear-gradient(90deg,#1a7a4a,var(--teal))}
 .bar-val{font-size:11px;font-weight:600;text-align:right}
 .expand-toggle{margin-top:7px;background:transparent;border:none;color:var(--blue);font-size:12px;cursor:pointer;padding:3px 0;display:flex;align-items:center;gap:4px}
 .expand-toggle:hover{text-decoration:underline}
@@ -150,7 +154,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 .action-btn:hover{border-color:var(--blue);color:var(--blue)}
 .action-btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
 .action-btn.primary:hover{opacity:.85}
-.action-btn.danger{background:#b91c1c;border-color:#b91c1c;color:#fff}
+.action-btn.success{background:var(--green);border-color:var(--green);color:#fff}
 .action-btn.loading{opacity:.5;pointer-events:none}
 .save-indicator{font-size:11px;color:var(--green);margin-left:6px}
 .pat-hint{font-size:11px;color:var(--dimmed);margin-top:5px;line-height:1.5}
@@ -160,6 +164,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 .status-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
 .status-ok{background:var(--green-dim);color:var(--green)}
 .status-err{background:var(--red-dim);color:var(--red)}
+.config-desc{font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6}
+.config-preview{background:var(--surface3);border:1px solid var(--border);border-radius:var(--rs);padding:10px;margin-top:10px;font-size:11px;font-family:monospace;white-space:pre-wrap;color:var(--dimmed)}
 
 /* ── Toast ── */
 .toast{position:fixed;bottom:24px;right:24px;padding:11px 18px;border-radius:var(--r);background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:13px;z-index:9999;transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none;max-width:320px}
@@ -177,7 +183,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 <div class="header">
   <div class="header-left">
     <h1>📊 多家投信同步加碼偵測</h1>
-    <p>追蹤 14 檔主動式 ETF，偵測短期內被多家投信同步增持／減持的個股</p>
+    <p>追蹤 15 檔主動式 ETF，偵測短期內被多家投信同步增持／減持的個股</p>
     <div class="header-meta">
       <span id="data-date">資料載入中…</span>
       <span id="etf-count"></span>
@@ -190,7 +196,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 <div class="tabs">
   <button class="tab-btn active" data-tab="multi">📊 多ETF同步</button>
   <button class="tab-btn" data-tab="single">🔍 單檔ETF查詢</button>
-  <button class="tab-btn" data-tab="notify">🔔 Telegram推播</button>
+  <button class="tab-btn" data-tab="notify">⚙️ 設定與推播</button>
 </div>
 
 <!-- ═══ Tab: 多ETF同步 ═══ -->
@@ -208,6 +214,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
     <div class="filter-group">
       <span class="filter-label">最少</span>
       <div class="btn-group" id="mincount-btns">
+        <button class="btn" data-v="1">≥1家</button>
         <button class="btn" data-v="2">≥2家</button>
         <button class="btn active" data-v="3">≥3家</button>
         <button class="btn" data-v="4">≥4家</button>
@@ -228,11 +235,13 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
         <option value="pct">合計增減幅</option>
         <option value="value">折合市值</option>
         <option value="lots">增減張數</option>
+        <option value="new_pos">🆕 新建倉家數</option>
+        <option value="exit">🚫 出清家數</option>
       </select>
     </div>
   </div>
 
-  <div class="legend">
+  <div class="legend" id="multi-legend">
     <span style="color:var(--dimmed);font-size:12px">投信家數：</span>
     <div class="legend-item"><div class="dot dot-gold"></div>8家以上</div>
     <div class="legend-item"><div class="dot dot-orange"></div>5–7家</div>
@@ -249,9 +258,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
   <div class="single-controls">
     <div class="filter-group">
       <span class="filter-label">選擇ETF</span>
-      <select class="etf-select" id="single-etf-select">
-        <!-- filled by JS -->
-      </select>
+      <select class="etf-select" id="single-etf-select"></select>
     </div>
     <div class="filter-group">
       <span class="filter-label">觀察</span>
@@ -265,7 +272,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
   <div id="single-content"><div class="state-msg"><div class="spinner"></div>載入中…</div></div>
 </div>
 
-<!-- ═══ Tab: Telegram推播 ═══ -->
+<!-- ═══ Tab: 設定與推播 ═══ -->
 <div id="tab-notify" class="tab-content">
   <div class="notify-grid">
 
@@ -289,13 +296,13 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 
     <!-- GitHub PAT -->
     <div class="notify-card">
-      <h3>🔄 手動更新設定</h3>
+      <h3>🔑 GitHub PAT 設定</h3>
       <div class="form-group">
-        <label class="form-label">GitHub Personal Access Token (PAT)</label>
+        <label class="form-label">Personal Access Token</label>
         <input class="form-input" id="gh-pat" type="password" placeholder="ghp_xxxxxxxxxxxx">
         <div class="pat-hint">
-          需要申請 PAT 嗎？<a href="https://github.com/settings/tokens/new?scopes=workflow&description=etf-monitor" target="_blank">點此前往申請</a><br>
-          步驟：開啟連結 → Note 填 <code>etf-monitor</code> → 勾選 <code>workflow</code> → Generate token → 複製貼上
+          需要申請 PAT 嗎？<a href="https://github.com/settings/tokens/new?scopes=workflow,contents&description=etf-monitor" target="_blank">點此前往申請</a><br>
+          勾選 <code>workflow</code> 和 <code>repo</code> 權限 → Generate token → 複製貼上
         </div>
       </div>
       <div class="action-row">
@@ -310,18 +317,26 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
       <div class="form-group">
         <label class="form-label">觀察天數</label>
         <div class="btn-group" id="tg-a-period">
-          <button class="btn" data-v="1">1天</button>
-          <button class="btn active" data-v="3">3天</button>
+          <button class="btn active" data-v="1">1天</button>
+          <button class="btn" data-v="3">3天</button>
           <button class="btn" data-v="5">5天</button>
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">最少同步家數</label>
+        <label class="form-label">增持/減持最少同步家數</label>
         <div class="btn-group" id="tg-a-min">
           <button class="btn" data-v="2">≥2家</button>
           <button class="btn active" data-v="3">≥3家</button>
           <button class="btn" data-v="4">≥4家</button>
           <button class="btn" data-v="5">≥5家</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">新建倉/出清最少家數</label>
+        <div class="btn-group" id="tg-a-newmin">
+          <button class="btn active" data-v="1">≥1家</button>
+          <button class="btn" data-v="2">≥2家</button>
+          <button class="btn" data-v="3">≥3家</button>
         </div>
       </div>
       <div class="action-row">
@@ -336,9 +351,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
       <h3>🔍 樣板B：單檔ETF異動報告</h3>
       <div class="form-group">
         <label class="form-label">選擇要追蹤的ETF（可多選）</label>
-        <div class="etf-checks" id="tg-b-etfs">
-          <!-- filled by JS -->
-        </div>
+        <div class="etf-checks" id="tg-b-etfs"></div>
       </div>
       <div class="form-group" style="margin-top:10px">
         <label class="form-label">觀察天數</label>
@@ -353,6 +366,23 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
         <button class="action-btn" onclick="previewTemplateB()">👁 預覽</button>
       </div>
       <pre class="preview-box" id="preview-b"></pre>
+    </div>
+
+    <!-- 儲存設定到 GitHub -->
+    <div class="notify-card wide">
+      <h3>☁️ 儲存設定到 GitHub（自動排程連動）</h3>
+      <p class="config-desc">
+        點擊「儲存」後，上方所有推播設定（觀察天數、最少家數、新建倉門檻、樣板B追蹤ETF）
+        會寫入 GitHub repo 的 <code>data/config.json</code>。
+        下次 GitHub Actions 自動執行時，Python 腳本會優先讀取這份設定。<br>
+        <strong style="color:var(--gold)">需先設定 GitHub PAT（具備 repo + workflow 權限）</strong>
+      </p>
+      <div class="action-row">
+        <button class="action-btn success" onclick="saveConfigToGitHub()">☁️ 儲存設定到 GitHub</button>
+        <button class="action-btn" onclick="previewConfig()">👁 預覽設定內容</button>
+        <span id="config-save-status"></span>
+      </div>
+      <pre class="config-preview" id="config-preview" style="display:none"></pre>
     </div>
 
   </div>
@@ -380,6 +410,7 @@ const ETF_MAP = {
   '00983A':{ name:'主動中信ARK創新',  short:'中信ARK' },
   '00987A':{ name:'主動台新優勢成長', short:'台新優勢' },
   '00989A':{ name:'主動摩根美國科技', short:'摩根美科' },
+  '00999A':{ name:'主動野村臺灣高息', short:'野村高息' },
 };
 const ETF_LIST = Object.entries(ETF_MAP).map(([code,info])=>({code,...info}));
 const REPO = 'reno99936/etf-monitor';
@@ -471,7 +502,6 @@ function analyzeChanges(todayData, compareData, mode){
       stockMap[h.code].totalValue+=val;
     }
 
-    // 已清倉（減持模式）
     if(mode==='decrease'){
       for(const [code,prev] of compMap){
         if(etfToday.holdings.find(h=>h.code===code)||prev.weight<=0.01) continue;
@@ -486,6 +516,39 @@ function analyzeChanges(todayData, compareData, mode){
     }
   }
   return Object.values(stockMap);
+}
+
+function analyzeNewPositions(todayData, compareData){
+  const newMap={};
+  for(const [etfCode, etfToday] of Object.entries(todayData.etfs)){
+    const etfComp=compareData?.etfs?.[etfCode];
+    const compCodes=new Set((etfComp?.holdings||[]).map(h=>h.code));
+    for(const h of etfToday.holdings){
+      if(h.is_tw===false) continue;
+      if(!compCodes.has(h.code)){
+        if(!newMap[h.code]) newMap[h.code]={code:h.code,name:h.name,etfs:[]};
+        newMap[h.code].etfs.push({etfCode,lots:h.lots,weight:h.weight});
+      }
+    }
+  }
+  return Object.values(newMap).sort((a,b)=>b.etfs.length-a.etfs.length);
+}
+
+function analyzeExits(todayData, compareData){
+  if(!compareData) return [];
+  const exitMap={};
+  for(const [etfCode, etfComp] of Object.entries(compareData.etfs)){
+    const etfToday=todayData.etfs[etfCode];
+    const todayCodes=new Set((etfToday?.holdings||[]).map(h=>h.code));
+    for(const h of (etfComp?.holdings||[])){
+      if(h.is_tw===false) continue;
+      if(!todayCodes.has(h.code)){
+        if(!exitMap[h.code]) exitMap[h.code]={code:h.code,name:h.name,etfs:[]};
+        exitMap[h.code].etfs.push({etfCode});
+      }
+    }
+  }
+  return Object.values(exitMap).sort((a,b)=>b.etfs.length-a.etfs.length);
 }
 
 function sortStocks(stocks){
@@ -583,9 +646,68 @@ function renderCard(stock, mode, dateFrom, dateTo){
   </div>`;
 }
 
+function renderNewExitView(stocks, mode){
+  if(!stocks.length){
+    const emoji=mode==='new_pos'?'🆕':'🚫';
+    const label=mode==='new_pos'?'新建倉':'出清';
+    return `<div class="state-msg"><span class="emoji">${emoji}</span>目前條件無${label}紀錄，試試降低「最少家數」。</div>`;
+  }
+  const isNew=mode==='new_pos';
+  const cards=stocks.map(stock=>{
+    const n=stock.etfs.length, bc=badgeClass(n);
+    const cardCls=isNew?'new-card':'exit-card';
+    let etfRows='';
+    if(isNew){
+      const maxLots=Math.max(...stock.etfs.map(e=>e.lots),1);
+      etfRows=stock.etfs.map(e=>{
+        const info=ETF_MAP[e.etfCode];
+        const pct=(e.lots/maxLots*100).toFixed(1);
+        return `<div class="bar-row">
+          <span class="bar-etf-name">
+            <span class="bar-etf-short">${info?.short||e.etfCode}</span>
+            <span class="bar-etf-code">${e.etfCode}</span>
+          </span>
+          <div class="bar-track"><div class="bar-fill fill-teal" style="width:${pct}%"></div></div>
+          <span class="bar-val up">${e.lots.toLocaleString()}張</span>
+        </div>`;
+      }).join('');
+    } else {
+      etfRows=stock.etfs.map(e=>{
+        const info=ETF_MAP[e.etfCode];
+        return `<div class="bar-row">
+          <span class="bar-etf-name">
+            <span class="bar-etf-short">${info?.short||e.etfCode}</span>
+            <span class="bar-etf-code">${e.etfCode}</span>
+          </span>
+          <div class="bar-track"><div class="bar-fill fill-down" style="width:100%"></div></div>
+          <span class="bar-val down">出清</span>
+        </div>`;
+      }).join('');
+    }
+    return `<div class="card ${cardCls}">
+      <div class="card-top">
+        <div>
+          <div class="stock-code">${stock.code}
+            <span style="font-size:13px;font-weight:400;color:var(--muted)">${stock.name}</span>
+          </div>
+          ${isNew?`<div style="font-size:12px;color:var(--dimmed);margin-top:3px">首次建倉</div>`
+                 :`<div style="font-size:12px;color:var(--red);margin-top:3px">完全出清</div>`}
+        </div>
+        <div class="badge ${bc}"><span class="num">${n}</span><span class="lbl2">家</span></div>
+      </div>
+      <div class="etf-bars">${etfRows}</div>
+    </div>`;
+  }).join('');
+  return `<div class="cards-grid">${cards}</div>`;
+}
+
 async function renderMulti(){
   const content=document.getElementById('multi-content');
   const summaryEl=document.getElementById('summary');
+  const modeToggle=document.getElementById('mode-toggle');
+  const isNewExit=state.sortBy==='new_pos'||state.sortBy==='exit';
+  modeToggle.classList.toggle('dimmed', isNewExit);
+
   if(!state.dates.length){
     content.innerHTML=`<div class="state-msg"><span class="emoji">📭</span>尚無資料，請先執行資料抓取。</div>`;
     summaryEl.textContent='無資料'; return;
@@ -599,12 +721,27 @@ async function renderMulti(){
   }
   document.getElementById('data-date').textContent=`資料日期：${todayData.date}`;
   document.getElementById('etf-count').textContent=`追蹤 ${Object.keys(todayData.etfs).length} 檔 ETF`;
+  window._todayData=todayData;
+  window._compareData=compareData;
+
+  if(isNewExit){
+    const isNew=state.sortBy==='new_pos';
+    const stocks=(isNew?analyzeNewPositions:analyzeExits)(todayData,compareData)
+      .filter(s=>s.etfs.length>=state.minCount);
+    const label=isNew?'首次新建倉':'完全出清';
+    const color=isNew?'green':'red';
+    const compNote=compareData?`（對比 ${fmtDate(compareStr)}）`:'（無歷史對比）';
+    summaryEl.innerHTML=`過去 <span class="hl blue">${state.period} 天</span>${compNote}，找到
+      <span class="hl ${color}">${stocks.length} 檔</span>個股被
+      <span class="hl">${state.minCount} 家</span>以上投信${label}`;
+    content.innerHTML=renderNewExitView(stocks,state.sortBy);
+    return;
+  }
+
   const all=analyzeChanges(todayData,compareData,state.mode);
   const filtered=all.filter(s=>s.etfs.length>=state.minCount);
   const sorted=sortStocks(filtered);
   window._lastStocks=sorted;
-  window._todayData=todayData;
-  window._compareData=compareData;
   const modeLabel=state.mode==='increase'?'增持':'減持';
   const modeColor=state.mode==='increase'?'green':'red';
   const compNote=compareData?`（對比 ${fmtDate(compareStr)}）`:'（無歷史對比）';
@@ -679,35 +816,35 @@ async function renderSingle(){
     ${etfCode} ${etfInfo?.name||''} ｜ 對比 ${fmtDate(compareStr)} → ${fmtDate(todayStr)}
   </div>`;
 
-  // 新增
   if(newHolds.length){
     html+=`<div class="single-section"><div class="section-title">🌟 新增持股（${newHolds.length}檔）</div>
     <div class="holding-list">${newHolds.map((h,i)=>`<div class="holding-row">
       ${rankBadge(i)}<span class="h-code">${h.code}</span><span class="h-name">${h.name}</span>
       <span class="h-lots">${h.lots.toLocaleString()}張</span><span class="h-weight">${h.weight}%</span>
       <span class="new-tag">新增</span></div>`).join('')}</div></div>`;
+  } else {
+    html+=`<div class="single-section"><div class="section-title">🌟 新增持股</div><div class="no-change">無</div></div>`;
   }
-  // 剔除
   if(removed.length){
     html+=`<div class="single-section"><div class="section-title">🗑 剔除持股（${removed.length}檔）</div>
     <div class="holding-list">${removed.map((h,i)=>`<div class="holding-row">
       ${rankBadge(i)}<span class="h-code">${h.code}</span><span class="h-name">${h.name}</span>
       <span class="h-lots">${h.lots.toLocaleString()}張</span><span class="h-weight">${h.weight}%</span>
       <span class="new-tag" style="color:var(--red)">清倉</span></div>`).join('')}</div></div>`;
+  } else {
+    html+=`<div class="single-section"><div class="section-title">🗑 剔除持股</div><div class="no-change">無</div></div>`;
   }
-  // 增持前5
   if(inc.length){
     html+=`<div class="single-section"><div class="section-title">📈 增加持股前五名</div>
     <div class="holding-list">${inc.slice(0,5).map((h,i)=>holdingRow(h,i,true)).join('')}</div></div>`;
   } else {
-    html+=`<div class="single-section"><div class="section-title">📈 增加持股</div><div class="no-change">無增持記錄</div></div>`;
+    html+=`<div class="single-section"><div class="section-title">📈 增加持股</div><div class="no-change">無</div></div>`;
   }
-  // 減持前5
   if(dec.length){
     html+=`<div class="single-section"><div class="section-title">📉 減少持股前五名</div>
     <div class="holding-list">${dec.slice(0,5).map((h,i)=>holdingRow(h,i,true)).join('')}</div></div>`;
   } else {
-    html+=`<div class="single-section"><div class="section-title">📉 減少持股</div><div class="no-change">無減持記錄</div></div>`;
+    html+=`<div class="single-section"><div class="section-title">📉 減少持股</div><div class="no-change">無</div></div>`;
   }
 
   content.innerHTML=html;
@@ -715,10 +852,7 @@ async function renderSingle(){
 
 /* ══════════════════════ Telegram ══════════════════════ */
 function getTgConfig(){
-  return{
-    token: localStorage.getItem('tg_token')||'',
-    chatId: localStorage.getItem('tg_chat_id')||'',
-  };
+  return{ token:localStorage.getItem('tg_token')||'', chatId:localStorage.getItem('tg_chat_id')||'' };
 }
 
 function saveTgConfig(){
@@ -751,7 +885,8 @@ async function testTg(){
   await sendTg('✅ ETF監控系統測試訊息\n設定正確，推播正常！');
 }
 
-function buildTemplateA(period, minCount){
+/* ── Template builders ── */
+function buildTemplateA(period, minCount, newMin){
   if(!window._todayData) return '請先載入多ETF同步分頁的資料';
   const stocks=analyzeChanges(window._todayData,window._compareData,'increase');
   const filtered=stocks.filter(s=>s.etfs.length>=minCount);
@@ -765,11 +900,15 @@ function buildTemplateA(period, minCount){
       const lotsStr=s.totalLots?`${s.totalLots>=0?'+':''}${s.totalLots.toLocaleString()}張`:'';
       const val=s.totalValue;
       const valStr=val>=1e8?`折合市值+${(val/1e8).toFixed(2)}億`:val>=1e4?`折合市值+${(val/1e4).toFixed(1)}萬`:'';
-      const top3=([...s.etfs].sort((a,b)=>b.dPct-a.dPct).slice(0,3))
-        .map(e=>`${ETF_MAP[e.etfCode]?.short||e.etfName} ${e.etfCode}`).join('｜');
+      const etfLots=[...s.etfs].sort((a,b)=>b.dLots-a.dLots)
+        .map(e=>{
+          const short=ETF_MAP[e.etfCode]?.short||e.etfCode;
+          const sign=e.dLots>=0?'+':'';
+          return `${short}(${e.etfCode}) ${sign}${e.dLots}`;
+        }).join('｜');
       msg+=`${nums[i]} ${s.name} (${s.code})  ${s.etfs.length}家\n`;
       if(lotsStr||valStr) msg+=`   合計 ${[lotsStr,valStr].filter(Boolean).join('｜')}\n`;
-      msg+=`   增持排序前三｜${top3}\n\n`;
+      msg+=`   └ ${etfLots}\n\n`;
     });
   }
   const dec=analyzeChanges(window._todayData,window._compareData,'decrease')
@@ -778,6 +917,27 @@ function buildTemplateA(period, minCount){
     msg+=`📉 減持家數 TOP3：\n`;
     dec.slice(0,3).forEach((s,i)=>{ msg+=`${nums[i]} ${s.name} (${s.code})  ${s.etfs.length}家\n`; });
   }
+  // 新建倉/出清
+  msg+='\n────────────────\n';
+  const newStocks=analyzeNewPositions(window._todayData,window._compareData)
+    .filter(s=>s.etfs.length>=newMin);
+  msg+=`🆕 今日新建倉（≥${newMin}家進場）：\n`;
+  if(newStocks.length){
+    newStocks.slice(0,5).forEach((s,i)=>{
+      const etfStr=s.etfs.map(e=>`${ETF_MAP[e.etfCode]?.short||e.etfCode}(${e.etfCode}) ${e.lots.toLocaleString()}張`).join('｜');
+      msg+=`${nums[i]} ${s.name} (${s.code})  ${s.etfs.length}家\n   └ ${etfStr}\n`;
+    });
+  } else { msg+='無\n'; }
+  msg+='\n';
+  const exitStocks=analyzeExits(window._todayData,window._compareData)
+    .filter(s=>s.etfs.length>=newMin);
+  msg+=`🚫 今日完全出清（≥${newMin}家清倉）：\n`;
+  if(exitStocks.length){
+    exitStocks.slice(0,5).forEach((s,i)=>{
+      const etfStr=s.etfs.map(e=>`${ETF_MAP[e.etfCode]?.short||e.etfCode}(${e.etfCode})`).join('｜');
+      msg+=`${nums[i]} ${s.name} (${s.code})  ${s.etfs.length}家\n   └ ${etfStr}\n`;
+    });
+  } else { msg+='無\n'; }
   return msg;
 }
 
@@ -787,25 +947,27 @@ function buildTemplateB(period){
   if(!selected.length) return '請選擇至少一檔 ETF';
   const msgs=[];
   const todayStr=state.dates[0];
-  const compareStr=prevTradingDays(todayStr,period);
   for(const code of selected){
     const etfT=window._todayData.etfs[code];
     const etfC=window._compareData?.etfs?.[code];
-    if(!etfT||!etfT.holdings.length){ msgs.push(`${code}：無資料`); continue; }
-    const tMap=new Map(etfT.holdings.map(h=>[h.code,h]));
-    const cMap=new Map((etfC?.holdings||[]).map(h=>[h.code,h]));
-    let m=`📅 ${window._todayData.date} ${code} ${ETF_MAP[code]?.name||''}\n\n`;
-    const newH=etfT.holdings.filter(h=>!cMap.has(h.code));
+    if(!etfT||!etfT.holdings.length){ msgs.push(`⚠️ ${code}：無持股資料`); continue; }
+    // 只比較台股
+    const tHoldings=etfT.holdings.filter(h=>h.is_tw!==false);
+    const cHoldings=(etfC?.holdings||[]).filter(h=>h.is_tw!==false);
+    const tMap=new Map(tHoldings.map(h=>[h.code,h]));
+    const cMap=new Map(cHoldings.map(h=>[h.code,h]));
+    const dateStr=window._todayData.date.replace(/-/g,'/');
+    let m=`📅 ${dateStr} ${code} 異動追蹤\n\n`;
+    const newH=tHoldings.filter(h=>!cMap.has(h.code));
+    m+='🌟 新增持股：\n';
+    if(newH.length){ newH.forEach(h=>{ m+=`• ${h.name} (${h.code})\n  └ ${h.lots.toLocaleString()}張 ｜ 權重 ${h.weight}%\n`; }); }
+    else { m+='無\n'; }
+    m+='\n';
     const rmvd=[...cMap.values()].filter(h=>!tMap.has(h.code));
-    if(newH.length){
-      m+=`🌟 新增持股（${newH.length}檔）：\n`;
-      newH.forEach(h=>{ m+=`• ${h.name}（${h.code}）${h.lots.toLocaleString()}張｜${h.weight}%\n`; });
-      m+='\n';
-    }
-    if(rmvd.length){
-      m+=`🗑 剔除持股（${rmvd.length}檔）：\n`;
-      m+=rmvd.map(h=>`• ${h.name}（${h.code}）`).join('｜')+'\n\n';
-    }
+    m+='🗑 剔除持股：\n';
+    if(rmvd.length){ rmvd.forEach(h=>{ m+=`• ${h.name} (${h.code})\n`; }); }
+    else { m+='無\n'; }
+    m+='\n';
     const changes=[];
     for(const[c,th] of tMap){
       const prev=cMap.get(c); if(!prev) continue;
@@ -814,21 +976,21 @@ function buildTemplateB(period){
     }
     const inc=changes.filter(c=>c.dLots>0||c.dW>0.01).sort((a,b)=>b.dLots-a.dLots);
     const dec=changes.filter(c=>c.dLots<0||c.dW<-0.01).sort((a,b)=>a.dLots-b.dLots);
+    m+='📈 增加持股前五名：\n';
     if(inc.length){
-      m+=`📈 增加持股前五名：\n`;
       inc.slice(0,5).forEach(h=>{
         const sl=h.dLots>=0?'+':'', sw=h.dW>=0?'+':'';
-        m+=`• ${h.name}（${h.code}）\n  └ ${h.lots.toLocaleString()}張（${sl}${h.dLots.toLocaleString()}）｜${h.weight}%（${sw}${h.dW.toFixed(2)}%）\n`;
+        m+=`• ${h.name} (${h.code})\n  └ ${h.lots.toLocaleString()}張 (${sl}${h.dLots.toLocaleString()}) ｜ 權重 ${h.weight}% (${sw}${h.dW.toFixed(2)}%)\n`;
       });
-      m+='\n';
-    }
+    } else { m+='無\n'; }
+    m+='\n';
+    m+='📉 減少持股前五名：\n';
     if(dec.length){
-      m+=`📉 減少持股前五名：\n`;
       dec.slice(0,5).forEach(h=>{
         const sl=h.dLots>=0?'+':'', sw=h.dW>=0?'+':'';
-        m+=`• ${h.name}（${h.code}）\n  └ ${h.lots.toLocaleString()}張（${sl}${h.dLots.toLocaleString()}）｜${h.weight}%（${sw}${h.dW.toFixed(2)}%）\n`;
+        m+=`• ${h.name} (${h.code})\n  └ ${h.lots.toLocaleString()}張 (${sl}${h.dLots.toLocaleString()}) ｜ 權重 ${h.weight}% (${sw}${h.dW.toFixed(2)}%)\n`;
       });
-    }
+    } else { m+='無\n'; }
     msgs.push(m);
   }
   return msgs.join('\n────────────────\n\n');
@@ -838,36 +1000,32 @@ function getSelectedBEtfs(){
   return ETF_LIST.filter(e=>document.getElementById(`chk-${e.code}`)?.checked).map(e=>e.code);
 }
 
-function getTgPeriod(groupId){ return +document.querySelector(`#${groupId} .btn.active`)?.dataset.v||3; }
-function getTgMin(groupId){    return +document.querySelector(`#${groupId} .btn.active`)?.dataset.v||3; }
+function getTgPeriod(gid){ return +document.querySelector(`#${gid} .btn.active`)?.dataset.v||1; }
+function getTgMin(gid){    return +document.querySelector(`#${gid} .btn.active`)?.dataset.v||3; }
+function getTgNewMin(){    return +document.querySelector('#tg-a-newmin .btn.active')?.dataset.v||1; }
 
 async function sendTemplateA(){
-  const period=getTgPeriod('tg-a-period'), min=getTgMin('tg-a-min');
-  const msg=buildTemplateA(period,min);
-  await sendTg(msg);
+  const period=getTgPeriod('tg-a-period'), min=getTgMin('tg-a-min'), newMin=getTgNewMin();
+  await sendTg(buildTemplateA(period,min,newMin));
 }
 async function sendTemplateB(){
-  const period=getTgPeriod('tg-b-period');
-  const msg=buildTemplateB(period);
-  await sendTg(msg);
+  await sendTg(buildTemplateB(getTgPeriod('tg-b-period')));
 }
 function previewTemplateA(){
-  const period=getTgPeriod('tg-a-period'), min=getTgMin('tg-a-min');
   const el=document.getElementById('preview-a');
-  el.textContent=buildTemplateA(period,min);
+  el.textContent=buildTemplateA(getTgPeriod('tg-a-period'),getTgMin('tg-a-min'),getTgNewMin());
   el.style.display=el.style.display==='none'?'block':'none';
 }
 function previewTemplateB(){
-  const period=getTgPeriod('tg-b-period');
   const el=document.getElementById('preview-b');
-  el.textContent=buildTemplateB(period);
+  el.textContent=buildTemplateB(getTgPeriod('tg-b-period'));
   el.style.display=el.style.display==='none'?'block':'none';
 }
 
-/* ══════════════════════ GitHub Actions trigger ══════════════════════ */
+/* ══════════════════════ GitHub Actions / Config ══════════════════════ */
 function savePat(){
   const pat=document.getElementById('gh-pat').value.trim();
-  if(!pat||!pat.startsWith('ghp_')&&!pat.startsWith('github_pat_')){
+  if(!pat||(!pat.startsWith('ghp_')&&!pat.startsWith('github_pat_'))){
     showToast('PAT 格式不正確，應以 ghp_ 開頭','error'); return;
   }
   localStorage.setItem('gh_pat',pat);
@@ -876,12 +1034,66 @@ function savePat(){
   showToast('GitHub PAT 已儲存');
 }
 
+function buildConfig(){
+  return {
+    tg_period:   getTgPeriod('tg-a-period'),
+    tg_min_count:getTgMin('tg-a-min'),
+    tg_new_min:  getTgNewMin(),
+    tg_send_a:   true,
+    tg_send_b:   true,
+    tg_etfs_b:   getSelectedBEtfs(),
+  };
+}
+
+function previewConfig(){
+  const el=document.getElementById('config-preview');
+  el.textContent=JSON.stringify(buildConfig(),null,2);
+  el.style.display=el.style.display==='none'?'block':'none';
+}
+
+async function saveConfigToGitHub(){
+  const pat=localStorage.getItem('gh_pat')||'';
+  if(!pat){ showToast('請先設定 GitHub PAT','error'); return; }
+  const btn=document.querySelector('[onclick="saveConfigToGitHub()"]');
+  btn.classList.add('loading');
+  document.getElementById('config-save-status').innerHTML='';
+  try{
+    const jsonStr=JSON.stringify(buildConfig(),null,2);
+    const content=btoa(unescape(encodeURIComponent(jsonStr)));
+    const headers={
+      'Authorization':`Bearer ${pat}`,
+      'Accept':'application/vnd.github+json',
+      'X-GitHub-Api-Version':'2022-11-28',
+      'Content-Type':'application/json',
+    };
+    // 取現有 SHA
+    const getR=await fetch(`https://api.github.com/repos/${REPO}/contents/data/config.json`,{headers});
+    const sha=getR.ok?(await getR.json()).sha:undefined;
+    // PUT
+    const putR=await fetch(`https://api.github.com/repos/${REPO}/contents/data/config.json`,{
+      method:'PUT', headers,
+      body:JSON.stringify({
+        message:'config: 更新 Telegram 推播設定',
+        content,
+        ...(sha?{sha}:{}),
+      }),
+    });
+    if(putR.ok){
+      document.getElementById('config-save-status').innerHTML='<span class="status-badge status-ok">✓ 已儲存到 GitHub</span>';
+      showToast('✅ 設定已儲存到 GitHub！下次自動執行時套用。');
+    } else {
+      const d=await putR.json().catch(()=>({}));
+      showToast(`儲存失敗：${d.message||putR.status}`,'error');
+    }
+  }catch(e){ showToast(`儲存失敗：${e.message}`,'error'); }
+  finally{ btn.classList.remove('loading'); }
+}
+
 async function triggerUpdate(){
   const pat=localStorage.getItem('gh_pat')||'';
   if(!pat){
-    const el=document.querySelector('[data-tab="notify"]');
-    el?.click();
-    showToast('請先在「Telegram推播」分頁設定 GitHub PAT','error'); return;
+    document.querySelector('[data-tab="notify"]')?.click();
+    showToast('請先在「設定與推播」分頁設定 GitHub PAT','error'); return;
   }
   const btn=document.getElementById('update-btn');
   btn.classList.add('loading'); btn.textContent='⏳ 更新中…';
@@ -912,9 +1124,8 @@ function switchTab(tabId){
   if(tabId==='single') renderSingle();
 }
 
-/* ══════════════════════ Init UI elements ══════════════════════ */
+/* ══════════════════════ Init ══════════════════════ */
 function initStaticUI(){
-  // ETF selector
   const sel=document.getElementById('single-etf-select');
   ETF_LIST.forEach(e=>{
     const opt=document.createElement('option');
@@ -922,7 +1133,6 @@ function initStaticUI(){
     sel.appendChild(opt);
   });
 
-  // Telegram B ETF checkboxes
   const container=document.getElementById('tg-b-etfs');
   ETF_LIST.forEach(e=>{
     container.innerHTML+=`<label class="etf-check-item">
@@ -945,10 +1155,12 @@ function initStaticUI(){
 
 /* ══════════════════════ Event listeners ══════════════════════ */
 function bindBtnGroup(id, key, cb){
-  document.getElementById(id).addEventListener('click', e=>{
+  document.getElementById(id)?.addEventListener('click', e=>{
     const b=e.target.closest('.btn'); if(!b) return;
     document.querySelectorAll(`#${id} .btn`).forEach(x=>x.classList.remove('active'));
-    b.classList.add('active'); state[key]=+b.dataset.v; cb?.();
+    b.classList.add('active');
+    if(key) state[key]=+b.dataset.v;
+    cb?.();
   });
 }
 
@@ -970,8 +1182,13 @@ document.getElementById('single-etf-select').addEventListener('change', e=>{
 bindBtnGroup('period-btns','period',renderMulti);
 bindBtnGroup('mincount-btns','minCount',renderMulti);
 bindBtnGroup('single-period-btns','singlePeriod',renderSingle);
+// notify tab btn groups (no state key needed, just UI)
+bindBtnGroup('tg-a-period',null,null);
+bindBtnGroup('tg-a-min',null,null);
+bindBtnGroup('tg-a-newmin',null,null);
+bindBtnGroup('tg-b-period',null,null);
 
-/* ══════════════════════ Init ══════════════════════ */
+/* ══════════════════════ Boot ══════════════════════ */
 (async()=>{
   initStaticUI();
   state.dates=await loadIndex();

@@ -19,7 +19,7 @@ on:
         default: 'true'
       tg_etfs_b:
         description: '樣板B 追蹤ETF (逗號分隔)'
-        default: '00981A,00982A,00991A,00990A'
+        default: '00981A,00982A,00991A,00990A,00992A,00993A,00988A,00980A,00985A,00995A,00984A,00983A,00987A,00989A,00999A'
 
 permissions:
   contents: write
@@ -35,7 +35,7 @@ jobs:
       TG_MIN_COUNT:       ${{ github.event.inputs.tg_min_count || '3' }}
       TG_SEND_A:          ${{ github.event.inputs.tg_send_a || 'true' }}
       TG_SEND_B:          ${{ github.event.inputs.tg_send_b || 'true' }}
-      TG_ETFS_B:          ${{ github.event.inputs.tg_etfs_b || '00981A,00982A,00991A,00990A' }}
+      TG_ETFS_B:          ${{ github.event.inputs.tg_etfs_b || '00981A,00982A,00991A,00990A,00992A,00993A,00988A,00980A,00985A,00995A,00984A,00983A,00987A,00989A,00999A' }}
 
     steps:
       - name: Checkout

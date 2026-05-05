@@ -17,7 +17,7 @@ import pytz
 
 TAIPEI_TZ = pytz.timezone("Asia/Taipei")
 
-# 依規模排序的前14大主動式ETF
+# 依規模排序的主動式ETF（含台股、全球、美股）
 ETF_LIST = [
     ("00981A", "主動統一台股增長"),
     ("00982A", "主動群益台灣強棒"),
@@ -33,6 +33,7 @@ ETF_LIST = [
     ("00983A", "主動中信ARK創新"),
     ("00987A", "主動台新優勢成長"),
     ("00989A", "主動摩根美國科技"),
+    ("00999A", "主動野村臺灣高息"),
 ]
 
 HEADERS = {
@@ -44,6 +45,19 @@ HEADERS = {
     "Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.8",
     "Referer": "https://www.moneydj.com/",
 }
+
+
+def load_config() -> dict:
+    """讀取 data/config.json，若不存在則回傳空 dict"""
+    config_path = "data/config.json"
+    if not os.path.exists(config_path):
+        return {}
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"  ⚠ 讀取 config.json 失敗：{e}")
+        return {}
 
 
 def fetch_moneydj_holdings(etf_code: str) -> list[dict]:
@@ -91,13 +105,15 @@ def fetch_moneydj_holdings(etf_code: str) -> list[dict]:
             if len(cells) < 2:
                 continue
 
-            name_cell = cells[0]   # 如「台積電(2330.TW)」
+            name_cell = cells[0]   # 如「台積電(2330.TW)」或「NVIDIA(NVDA.US)」
 
-            # 從括號中取出股票代號，格式：(XXXX.TW) 或 (XXXXXX.TW)
-            code_match = re.search(r"\((\d{4,6})\.\w+\)", name_cell)
+            # 從括號取出代號與交易所，支援台股 (1234.TW) 及外股 (AAPL.US) 格式
+            code_match = re.search(r"\(([A-Z0-9\-]{1,10})\.(\w+)\)", name_cell, re.IGNORECASE)
             if not code_match:
                 continue
-            code = code_match.group(1)
+            code = code_match.group(1).upper()
+            exchange_raw = code_match.group(2).upper()
+            is_tw = bool(re.match(r"^\d{4,6}$", code)) and exchange_raw in ("TW", "TWO")
 
             # 取括號前面的股票名稱
             name = name_cell[: name_cell.rfind("(")].strip()
@@ -121,6 +137,8 @@ def fetch_moneydj_holdings(etf_code: str) -> list[dict]:
                 holdings.append(
                     {
                         "code": code,
+                        "exchange": exchange_raw,
+                        "is_tw": is_tw,
                         "name": name,
                         "shares": shares,
                         "lots": shares // 1000,
@@ -195,17 +213,22 @@ def main():
             all_codes.add(h["code"])
         time.sleep(3)
 
-    # ── 2. 批次取股價 ──────────────────────────────────
-    print(f"\n  取得 {len(all_codes)} 檔股票價格...")
-    prices = fetch_stock_prices(sorted(all_codes))
+    # ── 2. 批次取股價（僅台股，外股 price/value 維持 0）──
+    tw_codes: set[str] = {
+        h["code"] for etf_data in all_etf_data.values()
+        for h in etf_data["holdings"] if h.get("is_tw", True)
+    }
+    print(f"\n  取得 {len(tw_codes)} 檔台股價格（共 {len(all_codes)} 檔含外股）...")
+    prices = fetch_stock_prices(sorted(tw_codes))
     print(f"  → 成功 {len(prices)} 檔\n")
 
-    # ── 3. 計算市值 ────────────────────────────────────
+    # ── 3. 計算市值（僅台股有即時報價）───────────────────
     for etf_data in all_etf_data.values():
         for h in etf_data["holdings"]:
-            p = prices.get(h["code"], 0.0)
-            h["price"] = p
-            h["value"] = round(h["shares"] * p)
+            if h.get("is_tw", True):
+                p = prices.get(h["code"], 0.0)
+                h["price"] = p
+                h["value"] = round(h["shares"] * p)
 
     # ── 4. 儲存當日 JSON ───────────────────────────────
     output = {
@@ -242,8 +265,11 @@ def main():
     print(f"\n=== 完成  共 {total} 筆持股  失敗：{failed or '無'} ===")
 
     # ── 6. Telegram 推播 ───────────────────────────────
-    tg_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-    tg_chat  = os.environ.get("TELEGRAM_CHAT_ID", "")
+    config = load_config()
+
+    tg_token = config.get("tg_token", os.environ.get("TELEGRAM_BOT_TOKEN", ""))
+    tg_chat  = config.get("tg_chat",  os.environ.get("TELEGRAM_CHAT_ID", ""))
+
     if tg_token and tg_chat:
         # 讀取昨日資料做比較
         compare_data = None
@@ -253,15 +279,29 @@ def main():
                 with open(prev_path, "r", encoding="utf-8") as f:
                     compare_data = json.load(f)
 
-        tg_period   = int(os.environ.get("TG_PERIOD", "1"))
-        tg_min      = int(os.environ.get("TG_MIN_COUNT", "3"))
-        send_a      = os.environ.get("TG_SEND_A", "true").lower() == "true"
-        send_b      = os.environ.get("TG_SEND_B", "true").lower() == "true"
-        b_etfs_raw  = os.environ.get("TG_ETFS_B", "00981A,00982A,00991A,00990A")
-        b_etfs      = [e.strip() for e in b_etfs_raw.split(",") if e.strip()]
+        tg_period  = config.get("tg_period",  int(os.environ.get("TG_PERIOD",    "1")))
+        tg_min     = config.get("tg_min",     int(os.environ.get("TG_MIN_COUNT", "3")))
+        tg_new_min = config.get("tg_new_min", int(os.environ.get("TG_NEW_MIN",   "1")))
+        send_a     = config.get("send_a",     os.environ.get("TG_SEND_A", "true").lower() == "true")
+        send_b     = config.get("send_b",     os.environ.get("TG_SEND_B", "true").lower() == "true")
+
+        # b_etfs：config 優先（接受 list 或逗號字串），否則 fallback 到 env var
+        cfg_b = config.get("b_etfs")
+        if cfg_b:
+            if isinstance(cfg_b, list):
+                b_etfs = [e.strip() for e in cfg_b if e.strip()]
+            else:
+                b_etfs = [e.strip() for e in str(cfg_b).split(",") if e.strip()]
+        else:
+            b_etfs_raw = os.environ.get(
+                "TG_ETFS_B",
+                "00981A,00982A,00991A,00990A,00992A,00993A,00988A,00980A,"
+                "00985A,00995A,00984A,00983A,00987A,00989A,00999A",
+            )
+            b_etfs = [e.strip() for e in b_etfs_raw.split(",") if e.strip()]
 
         if send_a:
-            msg = build_telegram_a(output, compare_data, tg_period, tg_min)
+            msg = build_telegram_a(output, compare_data, tg_period, tg_min, tg_new_min)
             ok = send_telegram(tg_token, tg_chat, msg)
             print(f"  Telegram 樣板A：{'✓' if ok else '✗'}")
 
@@ -282,7 +322,7 @@ ETF_SHORT = {
     "00990A": "元大AI",   "00992A": "群益科技", "00993A": "安聯台灣",
     "00988A": "統一全球", "00980A": "野村優選", "00985A": "野村50",
     "00995A": "中信卓越", "00984A": "安聯高息", "00983A": "中信ARK",
-    "00987A": "台新優勢", "00989A": "摩根美科",
+    "00987A": "台新優勢", "00989A": "摩根美科", "00999A": "野村高息",
 }
 
 
@@ -301,12 +341,21 @@ def send_telegram(token: str, chat_id: str, text: str) -> bool:
         return False
 
 
-def build_telegram_a(today_data: dict, compare_data: dict | None, period: int, min_count: int) -> str:
+def build_telegram_a(
+    today_data: dict,
+    compare_data: dict | None,
+    period: int,
+    min_count: int,
+    new_min: int = 1,
+) -> str:
+    # ── 增持統計 ──────────────────────────────────────────
     stock_map: dict[str, dict] = {}
     for etf_code, etf_t in today_data["etfs"].items():
         comp = compare_data["etfs"].get(etf_code, {}) if compare_data else {}
         comp_h = {h["code"]: h for h in comp.get("holdings", [])}
         for h in etf_t["holdings"]:
+            if not h.get("is_tw", True):   # 樣板A只納入台股
+                continue
             prev = comp_h.get(h["code"])
             dW = round(h["weight"] - (prev["weight"] if prev else 0), 4)
             if dW <= 0.01:
@@ -315,8 +364,10 @@ def build_telegram_a(today_data: dict, compare_data: dict | None, period: int, m
             c = h["code"]
             if c not in stock_map:
                 stock_map[c] = {"code": c, "name": h["name"], "etfs": [], "total_lots": 0, "total_val": 0}
-            stock_map[c]["etfs"].append({"code": etf_code, "dW": dW, "dLots": dLots,
-                                          "dVal": dLots * 1000 * h.get("price", 0)})
+            stock_map[c]["etfs"].append({
+                "code": etf_code, "dW": dW, "dLots": dLots,
+                "dVal": dLots * 1000 * h.get("price", 0),
+            })
             stock_map[c]["total_lots"] += dLots
             stock_map[c]["total_val"]  += dLots * 1000 * h.get("price", 0)
 
@@ -334,19 +385,25 @@ def build_telegram_a(today_data: dict, compare_data: dict | None, period: int, m
             val    = s["total_val"]
             val_s  = (f"折合市值+{val/1e8:.2f}億" if val >= 1e8
                       else f"+{val/1e4:.1f}萬" if val >= 1e4 else "")
-            top3 = sorted(s["etfs"], key=lambda e: e["dW"], reverse=True)[:3]
-            etf_names = "｜".join(f"{ETF_SHORT.get(e['code'], e['code'])} {e['code']}" for e in top3)
+            # 依 dLots 降序，全部列出
+            all_etfs_sorted = sorted(s["etfs"], key=lambda e: e["dLots"], reverse=True)
+            etf_parts = "｜".join(
+                f"{ETF_SHORT.get(e['code'], e['code'])}({e['code']}) {'+' if e['dLots'] >= 0 else ''}{e['dLots']}"
+                for e in all_etfs_sorted
+            )
             msg += f"{nums[i]} {s['name']} ({s['code']})  {len(s['etfs'])}家\n"
             if lots_s or val_s:
                 msg += f"   合計 {' ｜ '.join(x for x in [lots_s, val_s] if x)}\n"
-            msg += f"   增持排序前三｜{etf_names}\n\n"
+            msg += f"   └ {etf_parts}\n\n"
 
-    # 減持摘要
+    # ── 減持摘要 ───────────────────────────────────────────
     dec_map: dict[str, int] = {}
     for etf_code, etf_t in today_data["etfs"].items():
         comp = compare_data["etfs"].get(etf_code, {}) if compare_data else {}
         comp_h = {h["code"]: h for h in comp.get("holdings", [])}
         for h in etf_t["holdings"]:
+            if not h.get("is_tw", True):   # 樣板A只納入台股
+                continue
             prev = comp_h.get(h["code"])
             if prev and h["weight"] - prev["weight"] < -0.01:
                 dec_map[h["code"]] = dec_map.get(h["code"], 0) + 1
@@ -360,6 +417,77 @@ def build_telegram_a(today_data: dict, compare_data: dict | None, period: int, m
             name = all_hs.get(c, {}).get("name", c)
             msg += f"{nums[i]} {name} ({c})  {n}家\n"
 
+    # ── 新建倉 & 完全出清 ──────────────────────────────────
+    msg += f"\n────────────────\n"
+
+    # 建立今日 / 昨日台股持倉 Map：stock_code -> {etf_code: lots}
+    today_tw: dict[str, dict[str, int]] = {}   # {stock_code: {etf_code: lots}}
+    prev_tw:  dict[str, dict[str, int]] = {}
+
+    for etf_code, etf_t in today_data["etfs"].items():
+        for h in etf_t["holdings"]:
+            if not h.get("is_tw", True):
+                continue
+            today_tw.setdefault(h["code"], {})[etf_code] = h["lots"]
+            # 股票名稱備用
+            today_tw[h["code"]]["__name__"] = h["name"]   # type: ignore[assignment]
+
+    if compare_data:
+        for etf_code, etf_c in compare_data["etfs"].items():
+            for h in etf_c.get("holdings", []):
+                if not h.get("is_tw", True):
+                    continue
+                prev_tw.setdefault(h["code"], {})[etf_code] = h["lots"]
+                prev_tw[h["code"]]["__name__"] = h["name"]   # type: ignore[assignment]
+
+    # 新建倉：今日有、昨日沒有，且進場家數 >= new_min
+    new_entries: list[tuple[str, str, dict[str, int]]] = []
+    for code, etf_lots in today_tw.items():
+        if code == "__name__":
+            continue
+        real_etfs = {k: v for k, v in etf_lots.items() if k != "__name__"}
+        if code not in prev_tw and len(real_etfs) >= new_min:
+            name = etf_lots.get("__name__", code)  # type: ignore[arg-type]
+            new_entries.append((code, name, real_etfs))
+
+    new_entries.sort(key=lambda x: len(x[2]), reverse=True)
+
+    msg += f"\n🆕 今日新建倉（≥{new_min}家進場）：\n"
+    if new_entries:
+        for i, (code, name, etf_lots) in enumerate(new_entries[:5]):
+            etf_parts = "｜".join(
+                f"{ETF_SHORT.get(ec, ec)}({ec}) {etf_lots[ec]}張"
+                for ec in sorted(etf_lots, key=lambda k: etf_lots[k], reverse=True)
+            )
+            msg += f"{nums[i]} {name} ({code})  {len(etf_lots)}家\n"
+            msg += f"   └ {etf_parts}\n"
+    else:
+        msg += "無\n"
+
+    # 完全出清：昨日有、今日沒有，且清倉家數 >= new_min
+    exit_entries: list[tuple[str, str, dict[str, int]]] = []
+    for code, etf_lots in prev_tw.items():
+        if code == "__name__":
+            continue
+        real_etfs = {k: v for k, v in etf_lots.items() if k != "__name__"}
+        if code not in today_tw and len(real_etfs) >= new_min:
+            name = etf_lots.get("__name__", code)  # type: ignore[arg-type]
+            exit_entries.append((code, name, real_etfs))
+
+    exit_entries.sort(key=lambda x: len(x[2]), reverse=True)
+
+    msg += f"\n🚫 今日完全出清（≥{new_min}家清倉）：\n"
+    if exit_entries:
+        for i, (code, name, etf_lots) in enumerate(exit_entries[:5]):
+            etf_parts = "｜".join(
+                f"{ETF_SHORT.get(ec, ec)}({ec})"
+                for ec in sorted(etf_lots)
+            )
+            msg += f"{nums[i]} {name} ({code})  {len(etf_lots)}家\n"
+            msg += f"   └ {etf_parts}\n"
+    else:
+        msg += "無\n"
+
     return msg
 
 
@@ -369,23 +497,35 @@ def build_telegram_b(etf_code: str, today_data: dict, compare_data: dict | None)
         return f"⚠️ {etf_code}：無持股資料"
 
     etf_c = compare_data["etfs"].get(etf_code) if compare_data else None
-    t_map = {h["code"]: h for h in etf_t["holdings"]}
-    c_map = {h["code"]: h for h in (etf_c["holdings"] if etf_c else [])}
 
-    msg = f"📅 {today_data['date']} {etf_code} {etf_t['name']}\n\n"
+    # 只比較台股（外股不列入異動報表）
+    t_map = {h["code"]: h for h in etf_t["holdings"] if h.get("is_tw", True)}
+    c_map = {h["code"]: h for h in (etf_c["holdings"] if etf_c else []) if h.get("is_tw", True)}
 
-    new_h = [h for h in etf_t["holdings"] if h["code"] not in c_map]
+    date_str = today_data["date"].replace("-", "/")
+    msg = f"📅 {date_str} {etf_code} 異動追蹤\n\n"
+
+    # 新增持股
+    new_h = [h for code, h in t_map.items() if code not in c_map]
+    msg += "🌟 新增持股：\n"
     if new_h:
-        msg += f"🌟 新增持股（{len(new_h)}檔）：\n"
         for h in new_h:
-            msg += f"• {h['name']}（{h['code']}）{h['lots']:,}張｜{h['weight']}%\n"
-        msg += "\n"
+            msg += f"• {h['name']} ({h['code']})\n  └ {h['lots']:,}張 ｜ 權重 {h['weight']}%\n"
+    else:
+        msg += "無\n"
+    msg += "\n"
 
+    # 剔除持股
     rmvd = [h for code, h in c_map.items() if code not in t_map]
+    msg += "🗑 剔除持股：\n"
     if rmvd:
-        msg += f"🗑 剔除持股（{len(rmvd)}檔）：\n"
-        msg += "｜".join(f"{h['name']}（{h['code']}）" for h in rmvd) + "\n\n"
+        for h in rmvd:
+            msg += f"• {h['name']} ({h['code']})\n"
+    else:
+        msg += "無\n"
+    msg += "\n"
 
+    # 計算持股異動
     changes = []
     for code, th in t_map.items():
         prev = c_map.get(code)
@@ -395,23 +535,33 @@ def build_telegram_b(etf_code: str, today_data: dict, compare_data: dict | None)
         dLots = th["lots"] - prev["lots"]
         changes.append({**th, "dW": dW, "dLots": dLots})
 
-    inc = sorted([c for c in changes if c["dLots"] > 0 or c["dW"] > 0.01], key=lambda c: c["dLots"], reverse=True)
-    dec = sorted([c for c in changes if c["dLots"] < 0 or c["dW"] < -0.01], key=lambda c: c["dLots"])
+    inc = sorted([c for c in changes if c["dLots"] > 0 or c["dW"] > 0.01],
+                 key=lambda c: c["dLots"], reverse=True)
+    dec = sorted([c for c in changes if c["dLots"] < 0 or c["dW"] < -0.01],
+                 key=lambda c: c["dLots"])
 
+    msg += "📈 增加持股前五名：\n"
     if inc:
-        msg += "📈 增加持股前五名：\n"
         for h in inc[:5]:
             sl = "+" if h["dLots"] >= 0 else ""
             sw = "+" if h["dW"] >= 0 else ""
-            msg += f"• {h['name']}（{h['code']}）\n  └ {h['lots']:,}張（{sl}{h['dLots']:,}）｜{h['weight']}%（{sw}{h['dW']:.2f}%）\n"
-        msg += "\n"
+            msg += (f"• {h['name']} ({h['code']})\n"
+                    f"  └ {h['lots']:,}張 ({sl}{h['dLots']:,})"
+                    f" ｜ 權重 {h['weight']}% ({sw}{h['dW']:.2f}%)\n")
+    else:
+        msg += "無\n"
+    msg += "\n"
 
+    msg += "📉 減少持股前五名：\n"
     if dec:
-        msg += "📉 減少持股前五名：\n"
         for h in dec[:5]:
             sl = "+" if h["dLots"] >= 0 else ""
             sw = "+" if h["dW"] >= 0 else ""
-            msg += f"• {h['name']}（{h['code']}）\n  └ {h['lots']:,}張（{sl}{h['dLots']:,}）｜{h['weight']}%（{sw}{h['dW']:.2f}%）\n"
+            msg += (f"• {h['name']} ({h['code']})\n"
+                    f"  └ {h['lots']:,}張 ({sl}{h['dLots']:,})"
+                    f" ｜ 權重 {h['weight']}% ({sw}{h['dW']:.2f}%)\n")
+    else:
+        msg += "無\n"
 
     return msg
 
