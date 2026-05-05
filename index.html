@@ -117,7 +117,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 .single-section{margin-bottom:20px}
 .section-title{font-size:16px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px}
 .holding-list{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
-.holding-row{display:grid;grid-template-columns:42px 84px 1fr auto auto auto;gap:8px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);font-size:15px}
+.holding-row{display:grid;grid-template-columns:42px 84px minmax(0,280px) auto auto auto 1fr;gap:8px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);font-size:15px}
 .holding-row:last-child{border-bottom:none}
 .holding-row:hover{background:var(--surface2)}
 .h-code{color:var(--blue);font-weight:600;font-size:15px}
@@ -173,7 +173,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 .toast.success{border-color:var(--green);color:var(--green)}
 .toast.error{border-color:var(--red);color:var(--red)}
 
-@media(max-width:760px){.bar-row{grid-template-columns:90px 68px 1fr}.holding-row{grid-template-columns:34px 74px 1fr auto}}
+@media(max-width:760px){.bar-row{grid-template-columns:90px 68px 1fr}.holding-row{grid-template-columns:34px 74px minmax(0,180px) auto}}
 </style>
 </head>
 <body>
