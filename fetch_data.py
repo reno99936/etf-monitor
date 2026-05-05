@@ -77,6 +77,20 @@ def fetch_moneydj_holdings(etf_code: str) -> list[dict]:
         r.encoding = "utf-8"
         soup = BeautifulSoup(r.text, "lxml")
 
+        # ── 驗證資料日期 ──────────────────────────────────────
+        today_tw = datetime.now(TAIPEI_TZ).date()
+        date_tag = soup.find(string=re.compile(r"資料日期"))
+        if date_tag:
+            m = re.search(r"(\d{4}/\d{2}/\d{2})", date_tag)
+            if m:
+                page_date_str = m.group(1)
+                page_date = datetime.strptime(page_date_str, "%Y/%m/%d").date()
+                if page_date < today_tw:
+                    print(f"  ⚠  {etf_code} 資料日期 {page_date_str}，尚未更新至今日 {today_tw}，略過")
+                    return []
+                else:
+                    print(f"  ✓  {etf_code} 資料日期 {page_date_str} 符合今日")
+
         # 找 class="datalist" 且標題含「個股名稱」的表格
         target_table = None
         for table in soup.find_all("table", class_="datalist"):
