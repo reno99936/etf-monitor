@@ -52,6 +52,22 @@ HEADERS = {
 }
 
 
+def is_today_trading_day() -> bool:
+    """透過 TWSE afterTrading API 判斷今日是否為台股交易日"""
+    today_str = datetime.now(TAIPEI_TZ).strftime("%Y%m%d")
+    try:
+        url = (
+            "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX"
+            f"?date={today_str}&type=MS&response=json"
+        )
+        r = requests.get(url, headers={"User-Agent": HEADERS["User-Agent"]}, timeout=10)
+        data = r.json()
+        return data.get("stat") == "OK"
+    except Exception as e:
+        print(f"  ⚠ 交易日判斷失敗（預設為交易日）：{e}")
+        return True  # 查詢失敗時保守假設為交易日
+
+
 def load_config() -> dict:
     config_path = "data/config.json"
     if not os.path.exists(config_path):
@@ -221,6 +237,13 @@ def fetch_etf_meta() -> dict:
 def main():
     now_start = datetime.now(TAIPEI_TZ)
     today_str  = now_start.strftime("%Y%m%d")
+
+    print(f"=== ETF 持股抓取  {now_start.strftime('%Y-%m-%d %H:%M:%S %Z')} ===\n")
+
+    # 非交易日（國定假日）直接結束，不推播
+    if not is_today_trading_day():
+        print("  ℹ 今日為台股休市日（國定假日），略過資料抓取。")
+        return
 
     # 截止時間：台北 22:00（若啟動時已超過22:00，則給2小時）
     cutoff = now_start.replace(hour=22, minute=0, second=0, microsecond=0)
