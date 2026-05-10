@@ -2,7 +2,7 @@ name: 每日更新ETF持股
 
 on:
   schedule:
-    - cron: '0 10 * * 1-5'   # UTC 10:00 = 台北 18:00，週一至週五
+    - cron: '0 12 * * 1-5'   # UTC 12:00 = 台北 20:00，週一至週五
   workflow_dispatch:           # 允許手動觸發
     inputs:
       tg_period:

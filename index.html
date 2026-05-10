@@ -96,7 +96,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 
 /* ── ETF bar rows ── */
 .etf-bars{margin-top:13px}
-.bar-row{display:grid;grid-template-columns:130px 90px 1fr;align-items:center;gap:8px;padding:4px 0}
+.bar-row{display:grid;grid-template-columns:130px 68px 85px 1fr;align-items:center;gap:8px;padding:4px 0}
 .bar-etf-name{font-size:13px;color:var(--muted);line-height:1.3;overflow:hidden}
 .bar-etf-short{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
 .bar-etf-code{color:var(--dimmed);font-size:12px;display:block}
@@ -105,6 +105,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 .fill-up{background:linear-gradient(90deg,#2ea043,var(--green))}
 .fill-down{background:linear-gradient(90deg,#b91c1c,var(--red))}
 .fill-teal{background:linear-gradient(90deg,#1a7a4a,var(--teal))}
+.bar-lots{font-size:13px;font-weight:600;text-align:right;white-space:nowrap}
 .bar-val{font-size:13px;font-weight:600;text-align:left;white-space:nowrap}
 .expand-toggle{margin-top:9px;background:transparent;border:none;color:var(--blue);font-size:14px;cursor:pointer;padding:3px 0;display:flex;align-items:center;gap:4px}
 .expand-toggle:hover{text-decoration:underline}
@@ -173,7 +174,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 .toast.success{border-color:var(--green);color:var(--green)}
 .toast.error{border-color:var(--red);color:var(--red)}
 
-@media(max-width:760px){.bar-row{grid-template-columns:90px 68px 1fr}.holding-row{grid-template-columns:34px 74px minmax(0,180px) auto}}
+@media(max-width:760px){.bar-row{grid-template-columns:90px 50px 58px 1fr}.holding-row{grid-template-columns:34px 74px minmax(0,180px) auto}}
 </style>
 </head>
 <body>
@@ -544,7 +545,7 @@ function analyzeExits(todayData, compareData){
       if(h.is_tw===false) continue;
       if(!todayCodes.has(h.code)){
         if(!exitMap[h.code]) exitMap[h.code]={code:h.code,name:h.name,etfs:[]};
-        exitMap[h.code].etfs.push({etfCode});
+        exitMap[h.code].etfs.push({etfCode,lots:h.lots||0});
       }
     }
   }
@@ -575,11 +576,13 @@ function renderBars(etfs, mode, expanded){
     const info=ETF_MAP[e.etfCode];
     const tag=e.isNew?'<span class="new-tag">新增</span>':
               e.isExited?'<span class="new-tag" style="color:var(--red)">清倉</span>':'';
+    const lotsSign=e.dLots>=0?'+':'';
     return `<div class="bar-row">
       <span class="bar-etf-name">
         <span class="bar-etf-short">${info?.short||e.etfName}</span>
         <span class="bar-etf-code">${e.etfCode}</span>
       </span>
+      <span class="bar-lots ${colorCls}">${lotsSign}${e.dLots.toLocaleString()}張</span>
       <span class="bar-val ${colorCls}">${sign}${e.dPct.toFixed(2)}%${tag}</span>
       <div class="bar-track"><div class="bar-fill ${fillCls}" style="width:${pct}%"></div></div>
     </div>`;
@@ -667,7 +670,8 @@ function renderNewExitView(stocks, mode){
             <span class="bar-etf-short">${info?.short||e.etfCode}</span>
             <span class="bar-etf-code">${e.etfCode}</span>
           </span>
-          <span class="bar-val up">${e.lots.toLocaleString()}張</span>
+          <span class="bar-lots up">${e.lots.toLocaleString()}張</span>
+          <span class="bar-val up">${e.weight.toFixed(2)}%</span>
           <div class="bar-track"><div class="bar-fill fill-teal" style="width:${pct}%"></div></div>
         </div>`;
       }).join('');
@@ -679,6 +683,7 @@ function renderNewExitView(stocks, mode){
             <span class="bar-etf-short">${info?.short||e.etfCode}</span>
             <span class="bar-etf-code">${e.etfCode}</span>
           </span>
+          <span class="bar-lots down">-${(e.lots||0).toLocaleString()}張</span>
           <span class="bar-val down">出清</span>
           <div class="bar-track"><div class="bar-fill fill-down" style="width:100%"></div></div>
         </div>`;
@@ -1104,8 +1109,49 @@ async function triggerUpdate(){
       body:JSON.stringify({ref:'main'}),
     });
     if(r.status===204){
-      showToast('✅ 已觸發 GitHub Actions！約90秒後資料更新，請稍候重新整理頁面。');
-      setTimeout(()=>{ btn.classList.remove('loading'); btn.textContent='🔄 手動更新'; },90000);
+      showToast('✅ 已觸發 GitHub Actions，等待資料更新中…');
+      // 記錄當前資料的 timestamp，用來偵測是否有新資料
+      const todayStr=state.dates[0]||'';
+      let prevTs='';
+      if(todayStr){
+        try{
+          const jr=await fetch(`data/${todayStr}.json?${Date.now()}`);
+          if(jr.ok){ const jd=await jr.json(); prevTs=jd.timestamp||''; }
+        }catch(e){}
+      }
+      // 每 15 秒 polling，最多等 3 分鐘（12 次）
+      let attempt=0;
+      const timer=setInterval(async()=>{
+        attempt++;
+        btn.textContent=`⏳ 等待更新… (${attempt*15}s)`;
+        if(attempt>12){
+          clearInterval(timer);
+          btn.classList.remove('loading'); btn.textContent='🔄 手動更新';
+          showToast('⏱ 等待逾時，請手動重整頁面','error');
+          return;
+        }
+        try{
+          const ir=await fetch('data/index.json?'+Date.now());
+          if(!ir.ok) return;
+          const idx=await ir.json();
+          const newDates=idx.dates||[];
+          const latestStr=newDates[0]||'';
+          if(!latestStr) return;
+          const jr=await fetch(`data/${latestStr}.json?${Date.now()}`);
+          if(!jr.ok) return;
+          const jd=await jr.json();
+          const newTs=jd.timestamp||'';
+          if(newTs && newTs!==prevTs){
+            clearInterval(timer);
+            state.cache={};
+            state.dates=newDates;
+            btn.classList.remove('loading'); btn.textContent='🔄 手動更新';
+            showToast('✅ 資料已更新！');
+            await renderMulti();
+            if(document.getElementById('tab-single').classList.contains('active')) await renderSingle();
+          }
+        }catch(e){}
+      },15000);
     } else {
       const d=await r.json().catch(()=>({}));
       showToast(`觸發失敗：${d.message||r.status}，請確認 PAT 有 workflow 權限`,'error');
