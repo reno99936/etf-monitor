@@ -258,6 +258,14 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 <div id="tab-single" class="tab-content">
   <div class="single-controls">
     <div class="filter-group">
+      <span class="filter-label">排序依據</span>
+      <select class="etf-select" id="etf-sort-select">
+        <option value="code">代號</option>
+        <option value="aum">規模（大→小）</option>
+        <option value="ytd">近期漲跌（高→低）</option>
+      </select>
+    </div>
+    <div class="filter-group">
       <span class="filter-label">選擇ETF</span>
       <select class="etf-select" id="single-etf-select"></select>
     </div>
@@ -420,8 +428,46 @@ const REPO = 'reno99936/etf-monitor';
 const state = {
   period:3, minCount:3, mode:'increase', sortBy:'families',
   singleEtf: ETF_LIST[0].code, singlePeriod:1,
-  dates:[], cache:{},
+  etfSort:'code',
+  dates:[], cache:{}, metaData:{},
 };
+
+async function loadMeta(){
+  try{
+    const r=await fetch('data/meta.json?'+Date.now());
+    if(!r.ok) return {};
+    const d=await r.json();
+    return d.etfs||{};
+  }catch{ return {}; }
+}
+
+function rebuildEtfSelect(){
+  const sorted=[...ETF_LIST];
+  const meta=state.metaData;
+  if(state.etfSort==='aum'){
+    sorted.sort((a,b)=>(meta[b.code]?.aum||0)-(meta[a.code]?.aum||0));
+  } else if(state.etfSort==='ytd'){
+    sorted.sort((a,b)=>(meta[b.code]?.ytd_return??-999)-(meta[a.code]?.ytd_return??-999));
+  }
+  // 'code' = 保持原順序（ETF_LIST 已按代號排）
+  const sel=document.getElementById('single-etf-select');
+  const cur=sel.value;
+  sel.innerHTML='';
+  sorted.forEach(e=>{
+    const m=meta[e.code]||{};
+    let label=`${e.code} ${e.short}`;
+    if(state.etfSort==='aum' && m.aum_b!=null) label+=`  ${m.aum_b}億`;
+    if(state.etfSort==='ytd' && m.ytd_return!=null){
+      const s=m.ytd_return>=0?'+':'';
+      label+=`  ${s}${m.ytd_return}%`;
+    }
+    const opt=document.createElement('option');
+    opt.value=e.code; opt.textContent=label;
+    sel.appendChild(opt);
+  });
+  if([...sel.options].some(o=>o.value===cur)) sel.value=cur;
+  state.singleEtf=sel.value;
+}
 
 /* ══════════════════════ Utils ══════════════════════ */
 const fmtDate = s => `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
@@ -565,13 +611,13 @@ function sortStocks(stocks){
 
 /* ══════════════════════ Render: Multi-ETF ══════════════════════ */
 function renderBars(etfs, mode, expanded){
-  const sorted=[...etfs].sort((a,b)=>Math.abs(b.dPct)-Math.abs(a.dPct));
-  const maxAbs=Math.max(...sorted.map(e=>Math.abs(e.dPct)),0.001);
+  const sorted=[...etfs].sort((a,b)=>Math.abs(b.dLots)-Math.abs(a.dLots));
+  const maxLots=Math.max(...sorted.map(e=>Math.abs(e.dLots)),1);
   const shown=expanded?sorted:sorted.slice(0,3);
   const fillCls=mode==='increase'?'fill-up':'fill-down';
   const colorCls=mode==='increase'?'up':'down';
   return shown.map(e=>{
-    const pct=(Math.abs(e.dPct)/maxAbs*100).toFixed(1);
+    const pct=(Math.abs(e.dLots)/maxLots*100).toFixed(1);
     const sign=e.dPct>=0?'+':'';
     const info=ETF_MAP[e.etfCode];
     const tag=e.isNew?'<span class="new-tag">新增</span>':
@@ -840,14 +886,14 @@ async function renderSingle(){
     html+=`<div class="single-section"><div class="section-title">🗑 剔除持股</div><div class="no-change">無</div></div>`;
   }
   if(inc.length){
-    html+=`<div class="single-section"><div class="section-title">📈 增加持股前五名</div>
-    <div class="holding-list">${inc.slice(0,5).map((h,i)=>holdingRow(h,i,true)).join('')}</div></div>`;
+    html+=`<div class="single-section"><div class="section-title">📈 增加持股（${inc.length}檔）</div>
+    <div class="holding-list">${inc.map((h,i)=>holdingRow(h,i,true)).join('')}</div></div>`;
   } else {
     html+=`<div class="single-section"><div class="section-title">📈 增加持股</div><div class="no-change">無</div></div>`;
   }
   if(dec.length){
-    html+=`<div class="single-section"><div class="section-title">📉 減少持股前五名</div>
-    <div class="holding-list">${dec.slice(0,5).map((h,i)=>holdingRow(h,i,true)).join('')}</div></div>`;
+    html+=`<div class="single-section"><div class="section-title">📉 減少持股（${dec.length}檔）</div>
+    <div class="holding-list">${dec.map((h,i)=>holdingRow(h,i,true)).join('')}</div></div>`;
   } else {
     html+=`<div class="single-section"><div class="section-title">📉 減少持股</div><div class="no-change">無</div></div>`;
   }
@@ -1172,12 +1218,7 @@ function switchTab(tabId){
 
 /* ══════════════════════ Init ══════════════════════ */
 function initStaticUI(){
-  const sel=document.getElementById('single-etf-select');
-  ETF_LIST.forEach(e=>{
-    const opt=document.createElement('option');
-    opt.value=e.code; opt.textContent=`${e.code} ${e.short}`;
-    sel.appendChild(opt);
-  });
+  rebuildEtfSelect();
 
   const container=document.getElementById('tg-b-etfs');
   ETF_LIST.forEach(e=>{
@@ -1224,6 +1265,9 @@ document.getElementById('sort-select').addEventListener('change', e=>{
 document.getElementById('single-etf-select').addEventListener('change', e=>{
   state.singleEtf=e.target.value; renderSingle();
 });
+document.getElementById('etf-sort-select').addEventListener('change', e=>{
+  state.etfSort=e.target.value; rebuildEtfSelect(); renderSingle();
+});
 
 bindBtnGroup('period-btns','period',renderMulti);
 bindBtnGroup('mincount-btns','minCount',renderMulti);
@@ -1236,6 +1280,7 @@ bindBtnGroup('tg-b-period',null,null);
 
 /* ══════════════════════ Boot ══════════════════════ */
 (async()=>{
+  state.metaData=await loadMeta();
   initStaticUI();
   state.dates=await loadIndex();
   await renderMulti();

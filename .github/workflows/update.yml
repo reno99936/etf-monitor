@@ -2,7 +2,7 @@ name: 每日更新ETF持股
 
 on:
   schedule:
-    - cron: '0 12 * * 1-5'   # UTC 12:00 = 台北 20:00，週一至週五
+    - cron: '30 11 * * 1-5'  # UTC 11:30 = 台北 19:30，週一至週五
   workflow_dispatch:           # 允許手動觸發
     inputs:
       tg_period:
@@ -27,6 +27,7 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 180
 
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
