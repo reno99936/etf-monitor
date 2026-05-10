@@ -1342,7 +1342,7 @@ async function openChart(code,name){
 
 async function fetchOHLCV(code){
   const start=new Date();
-  start.setMonth(start.getMonth()-6);
+  start.setFullYear(start.getFullYear()-1);
   const startStr=start.toISOString().slice(0,10);
   const url=`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${code}&start_date=${startStr}`;
   const r=await fetch(url);
@@ -1478,7 +1478,13 @@ function renderLwChart(container,ohlcv,markers){
     updateEtfBar(_markerDetails[param.time]);
   });
 
-  _chart.timeScale().fitContent();
+  // 預設顯示最近 6 個月，但資料完整可自由拖拉縮放
+  const sixMoAgo=new Date();
+  sixMoAgo.setMonth(sixMoAgo.getMonth()-6);
+  _chart.timeScale().setVisibleRange({
+    from: sixMoAgo.toISOString().slice(0,10),
+    to:   ohlcv[ohlcv.length-1].time,
+  });
   new ResizeObserver(()=>{if(_chart)_chart.applyOptions({width:container.clientWidth,height:container.clientHeight});}).observe(container);
 }
 
