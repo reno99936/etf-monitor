@@ -184,6 +184,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 .chart-hdr{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
 .chart-x{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:24px;line-height:1;padding:2px 8px;border-radius:4px}
 .chart-x:hover{color:var(--text);background:var(--surface2)}
+.chart-info{padding:6px 20px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:13px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;min-height:32px;flex-shrink:0}
+.chart-etf{padding:5px 20px;border-bottom:1px solid var(--border);font-size:13px;display:none;gap:8px;flex-wrap:wrap;align-items:center;flex-shrink:0}
 .chart-body{flex:1;min-height:0;position:relative}
 #chartLoading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:15px;background:var(--surface)}
 #chartContainer{width:100%;height:100%}
@@ -1294,24 +1296,29 @@ bindBtnGroup('tg-a-newmin',null,null);
 bindBtnGroup('tg-b-period',null,null);
 
 /* ══════════════════════ Chart Modal ══════════════════════ */
-let _chart=null;
+let _chart=null, _cs=null, _maLines=[], _markerDetails={};
 
 function closeChart(e){
   if(e&&e.target!==document.getElementById('chartOverlay')) return;
   document.getElementById('chartOverlay').classList.remove('open');
-  if(_chart){_chart.remove();_chart=null;}
+  document.getElementById('chartInfo').innerHTML='';
+  document.getElementById('chartEtf').style.display='none';
+  if(_chart){_chart.remove();_chart=null;_cs=null;_maLines=[];}
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeChart();});
 
 async function openChart(code,name){
+  _markerDetails={};
   const ov=document.getElementById('chartOverlay');
   document.getElementById('chartCode').textContent=code;
   document.getElementById('chartName').textContent=name;
   document.getElementById('chartPrice').innerHTML='';
+  document.getElementById('chartInfo').innerHTML='';
+  document.getElementById('chartEtf').style.display='none';
   const loading=document.getElementById('chartLoading');
   const container=document.getElementById('chartContainer');
   loading.style.display='flex'; container.innerHTML='';
-  if(_chart){_chart.remove();_chart=null;}
+  if(_chart){_chart.remove();_chart=null;_cs=null;_maLines=[];}
   ov.classList.add('open');
   try{
     const [ohlcv,markers]=await Promise.all([fetchOHLCV(code),buildChartMarkers(code)]);
@@ -1320,9 +1327,9 @@ async function openChart(code,name){
       container.innerHTML='<div style="display:flex;height:100%;align-items:center;justify-content:center;color:var(--muted)">無法取得價格資料</div>';
       return;
     }
-    const last=ohlcv[ohlcv.length-1], prev=ohlcv.length>1?ohlcv[ohlcv.length-2]:null;
-    if(last&&prev){
-      const d=+(last.close-prev.close).toFixed(2), p=(d/prev.close*100).toFixed(2);
+    const last=ohlcv[ohlcv.length-1], prev2=ohlcv.length>1?ohlcv[ohlcv.length-2]:null;
+    if(last&&prev2){
+      const d=+(last.close-prev2.close).toFixed(2), p=(d/prev2.close*100).toFixed(2);
       const s=d>=0?'+':'', c=d>=0?'var(--green)':'var(--red)';
       document.getElementById('chartPrice').innerHTML=
         `<b style="font-size:17px">${last.close.toLocaleString()}</b>&nbsp;<span style="color:${c}">${s}${d}&nbsp;(${s}${p}%)</span>`;
@@ -1335,7 +1342,7 @@ async function openChart(code,name){
 
 async function fetchOHLCV(code){
   const start=new Date();
-  start.setFullYear(start.getFullYear()-1);
+  start.setMonth(start.getMonth()-6);
   const startStr=start.toISOString().slice(0,10);
   const url=`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${code}&start_date=${startStr}`;
   const r=await fetch(url);
@@ -1346,33 +1353,88 @@ async function fetchOHLCV(code){
 }
 
 async function buildChartMarkers(code){
-  const sorted=[...state.dates].reverse(); // oldest → newest
+  _markerDetails={};
+  const sorted=[...state.dates].reverse();
   const markers=[];
-  let prev=0;
+  let prevByEtf={};
   for(const d of sorted){
     const snap=await loadDay(d);
     if(!snap) continue;
-    let total=0;
-    for(const etfData of Object.values(snap.etfs||{})){
+    const curByEtf={};
+    for(const [etfCode,etfData] of Object.entries(snap.etfs||{})){
       const h=(etfData.holdings||[]).find(h=>h.code===code);
-      if(h) total+=h.lots||0;
+      if(h&&(h.lots||0)>0) curByEtf[etfCode]=h.lots;
     }
-    const dLots=total-prev;
-    const t=`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;
-    if(prev===0&&total>0)
-      markers.push({time:t,position:'belowBar',color:'#58a6ff',shape:'circle',text:`新進 ${total.toLocaleString()}張`});
-    else if(total===0&&prev>0)
-      markers.push({time:t,position:'aboveBar',color:'#8b949e',shape:'circle',text:'出清'});
-    else if(dLots>0)
-      markers.push({time:t,position:'belowBar',color:'#3fb950',shape:'arrowUp',text:`+${dLots.toLocaleString()}張`});
-    else if(dLots<0)
-      markers.push({time:t,position:'aboveBar',color:'#f85149',shape:'arrowDown',text:`${dLots.toLocaleString()}張`});
-    prev=total;
+    const allKeys=new Set([...Object.keys(prevByEtf),...Object.keys(curByEtf)]);
+    let netDLots=0;
+    const changes=[];
+    for(const etfCode of allKeys){
+      const p=prevByEtf[etfCode]||0,c=curByEtf[etfCode]||0,dl=c-p;
+      if(dl!==0){netDLots+=dl;changes.push({etfCode,dLots:dl});}
+    }
+    if(changes.length>0){
+      const t=`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;
+      _markerDetails[t]=changes;
+      const prevTotal=Object.values(prevByEtf).reduce((s,v)=>s+v,0);
+      const curTotal=Object.values(curByEtf).reduce((s,v)=>s+v,0);
+      if(prevTotal===0&&curTotal>0)
+        markers.push({time:t,position:'belowBar',color:'#58a6ff',shape:'circle',text:`新進 ${curTotal.toLocaleString()}張`});
+      else if(curTotal===0&&prevTotal>0)
+        markers.push({time:t,position:'aboveBar',color:'#8b949e',shape:'circle',text:'出清'});
+      else if(netDLots>0)
+        markers.push({time:t,position:'belowBar',color:'#3fb950',shape:'arrowUp',text:`+${netDLots.toLocaleString()}張`});
+      else if(netDLots<0)
+        markers.push({time:t,position:'aboveBar',color:'#f85149',shape:'arrowDown',text:`${netDLots.toLocaleString()}張`});
+    }
+    prevByEtf=curByEtf;
   }
   return markers;
 }
 
+function calcMA(data,period){
+  return data.reduce((acc,bar,i)=>{
+    if(i>=period-1){
+      const avg=data.slice(i-period+1,i+1).reduce((s,b)=>s+b.close,0)/period;
+      acc.push({time:bar.time,value:+avg.toFixed(2)});
+    }
+    return acc;
+  },[]);
+}
+
+function fmtN(v){
+  return v!=null?+v.toFixed(2)===Math.round(v)?Math.round(v).toLocaleString():v.toLocaleString(undefined,{maximumFractionDigits:2}):'—';
+}
+
+function updateInfoBar(time,candle,m5,m20,m60){
+  const el=document.getElementById('chartInfo');
+  if(!el||!time||!candle){if(el)el.innerHTML='';return;}
+  const clr=candle.close>=candle.open?'var(--green)':'var(--red)';
+  el.innerHTML=
+    `<span style="color:var(--dimmed)">${time}</span>`+
+    ` <span>開 <b>${fmtN(candle.open)}</b></span>`+
+    ` <span>高 <b>${fmtN(candle.high)}</b></span>`+
+    ` <span>低 <b>${fmtN(candle.low)}</b></span>`+
+    ` <span>收 <b style="color:${clr}">${fmtN(candle.close)}</b></span>`+
+    (m5!=null?` <span style="color:#f0b429">MA5 <b>${fmtN(m5)}</b></span>`:'')+
+    (m20!=null?` <span style="color:#58a6ff">MA20 <b>${fmtN(m20)}</b></span>`:'')+
+    (m60!=null?` <span style="color:#9161e6">MA60 <b>${fmtN(m60)}</b></span>`:'');
+}
+
+function updateEtfBar(details){
+  const el=document.getElementById('chartEtf');
+  if(!el) return;
+  if(!details||!details.length){el.style.display='none';el.innerHTML='';return;}
+  el.style.display='flex';
+  el.innerHTML=details.map(d=>{
+    const name=ETF_MAP[d.etfCode]?.short||d.etfCode;
+    const sign=d.dLots>0?'+':'';
+    const clr=d.dLots>0?'var(--green)':d.dLots<0?'var(--red)':'var(--muted)';
+    return `<span style="color:${clr}">${name}(${d.etfCode}) <b>${sign}${d.dLots.toLocaleString()}張</b></span>`;
+  }).join('<span style="color:var(--border);margin:0 6px">｜</span>');
+}
+
 function renderLwChart(container,ohlcv,markers){
+  if(_chart){_chart.remove();_chart=null;_cs=null;_maLines=[];}
   _chart=LightweightCharts.createChart(container,{
     layout:{background:{color:'#161b22'},textColor:'#e6edf3'},
     grid:{vertLines:{color:'#21262d'},horzLines:{color:'#21262d'}},
@@ -1382,17 +1444,42 @@ function renderLwChart(container,ohlcv,markers){
     width:container.clientWidth,
     height:container.clientHeight,
   });
-  const cs=_chart.addCandlestickSeries({
+  _cs=_chart.addCandlestickSeries({
     upColor:'#3fb950',downColor:'#f85149',
     borderUpColor:'#3fb950',borderDownColor:'#f85149',
     wickUpColor:'#3fb950',wickDownColor:'#f85149',
   });
-  cs.setData(ohlcv);
-  if(markers.length) cs.setMarkers(markers);
+  _cs.setData(ohlcv);
+  if(markers.length) _cs.setMarkers(markers);
+
+  const maCfg=[{p:5,c:'#f0b429'},{p:20,c:'#58a6ff'},{p:60,c:'#9161e6'}];
+  _maLines=maCfg.map(({p,c})=>{
+    const s=_chart.addLineSeries({color:c,lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
+    s.setData(calcMA(ohlcv,p));
+    return s;
+  });
+
+  const lastBar=ohlcv[ohlcv.length-1];
+  const lastMas=[calcMA(ohlcv,5).at(-1)?.value,calcMA(ohlcv,20).at(-1)?.value,calcMA(ohlcv,60).at(-1)?.value];
+  if(lastBar) updateInfoBar(lastBar.time,lastBar,...lastMas);
+
+  _chart.subscribeCrosshairMove(param=>{
+    if(!param.point||!param.time){
+      if(lastBar) updateInfoBar(lastBar.time,lastBar,...lastMas);
+      updateEtfBar(null);
+      return;
+    }
+    const c=param.seriesData.get(_cs);
+    updateInfoBar(param.time,c,
+      param.seriesData.get(_maLines[0])?.value,
+      param.seriesData.get(_maLines[1])?.value,
+      param.seriesData.get(_maLines[2])?.value
+    );
+    updateEtfBar(_markerDetails[param.time]);
+  });
+
   _chart.timeScale().fitContent();
-  new ResizeObserver(()=>{
-    if(_chart) _chart.applyOptions({width:container.clientWidth,height:container.clientHeight});
-  }).observe(container);
+  new ResizeObserver(()=>{if(_chart)_chart.applyOptions({width:container.clientWidth,height:container.clientHeight});}).observe(container);
 }
 
 /* ══════════════════════ Boot ══════════════════════ */
@@ -1412,6 +1499,8 @@ function renderLwChart(container,ohlcv,markers){
       <span id="chartPrice" style="color:var(--muted);font-size:14px;margin-left:4px"></span>
       <button class="chart-x" onclick="closeChart()">×</button>
     </div>
+    <div class="chart-info" id="chartInfo"></div>
+    <div class="chart-etf" id="chartEtf"></div>
     <div class="chart-body">
       <div id="chartLoading">載入中…</div>
       <div id="chartContainer"></div>
