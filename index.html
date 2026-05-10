@@ -473,10 +473,10 @@ function rebuildEtfSelect(){
 const fmtDate = s => `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
 
 function prevTradingDays(dateStr, n) {
-  const d = new Date(fmtDate(dateStr));
-  let count=0;
-  while(count<n){ d.setDate(d.getDate()-1); const w=d.getDay(); if(w!==0&&w!==6) count++; }
-  return d.toISOString().slice(0,10).replace(/-/g,'');
+  // 直接從 state.dates（實際有資料的交易日）取第 n 個，自動跳過週末與假日
+  const idx = state.dates.indexOf(dateStr);
+  const base = idx >= 0 ? idx : 0;
+  return state.dates[base + n] || state.dates[state.dates.length - 1] || dateStr;
 }
 
 function fmtVal(n) {

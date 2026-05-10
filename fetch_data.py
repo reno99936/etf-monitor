@@ -356,18 +356,20 @@ def main():
     tg_chat  = config.get("tg_chat",  os.environ.get("TELEGRAM_CHAT_ID", ""))
 
     if tg_token and tg_chat:
-        compare_data = None
-        if len(index["dates"]) >= 2:
-            prev_path = f"data/{index['dates'][1]}.json"
-            if os.path.exists(prev_path):
-                with open(prev_path, "r", encoding="utf-8") as f:
-                    compare_data = json.load(f)
-
         tg_period  = config.get("tg_period",  int(os.environ.get("TG_PERIOD",    "1")))
         tg_min     = config.get("tg_min",     int(os.environ.get("TG_MIN_COUNT", "3")))
         tg_new_min = config.get("tg_new_min", int(os.environ.get("TG_NEW_MIN",   "1")))
         send_a     = config.get("send_a",     os.environ.get("TG_SEND_A", "true").lower() == "true")
         send_b     = config.get("send_b",     os.environ.get("TG_SEND_B", "true").lower() == "true")
+
+        # 依 tg_period 取正確的交易日（index['dates'] 只含實際有資料的日期，自然跳過假日）
+        compare_data = None
+        cmp_idx = min(tg_period, len(index["dates"]) - 1)
+        if cmp_idx > 0:
+            prev_path = f"data/{index['dates'][cmp_idx]}.json"
+            if os.path.exists(prev_path):
+                with open(prev_path, "r", encoding="utf-8") as f:
+                    compare_data = json.load(f)
 
         cfg_b = config.get("b_etfs")
         if cfg_b:
