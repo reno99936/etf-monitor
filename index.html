@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>主動ETF持股監控</title>
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <style>
 :root {
   --bg:#0d1117; --surface:#161b22; --surface2:#1c2128; --surface3:#21262d;
@@ -175,6 +176,19 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 .toast.error{border-color:var(--red);color:var(--red)}
 
 @media(max-width:760px){.bar-row{grid-template-columns:90px 50px 58px 1fr}.holding-row{grid-template-columns:34px 74px minmax(0,180px) auto}}
+
+/* ── Chart Modal ── */
+.chart-ov{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:1000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.chart-ov.open{opacity:1;pointer-events:all}
+.chart-modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:92vw;max-width:1280px;height:82vh;display:flex;flex-direction:column;overflow:hidden}
+.chart-hdr{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.chart-x{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:24px;line-height:1;padding:2px 8px;border-radius:4px}
+.chart-x:hover{color:var(--text);background:var(--surface2)}
+.chart-body{flex:1;min-height:0;position:relative}
+#chartLoading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:15px;background:var(--surface)}
+#chartContainer{width:100%;height:100%}
+.h-code{cursor:pointer}.h-code:hover{text-decoration:underline}
+.sc-link{cursor:pointer}.sc-link:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -659,7 +673,7 @@ function renderCard(stock, mode, dateFrom, dateTo){
   return `<div class="card ${modeClass}" id="card-${stock.code}">
     <div class="card-top">
       <div>
-        <div class="stock-code">${stock.code}
+        <div class="stock-code"><span class="sc-link" onclick="openChart('${stock.code}','${stock.name}')">${stock.code}</span>
           <span style="font-size:13px;font-weight:400;color:var(--muted)">${stock.name}</span>
         </div>
         <div class="stock-metrics">
@@ -855,7 +869,7 @@ async function renderSingle(){
       <span style="font-size:10px">${signW}${h.dW.toFixed(2)}%</span></span>`:'';
     return `<div class="holding-row">
       ${rankBadge(i)}
-      <span class="h-code">${h.code}</span>
+      <span class="h-code" onclick="openChart('${h.code}','${h.name}')">${h.code}</span>
       <span class="h-name">${h.name}</span>
       <span class="h-lots">${h.lots.toLocaleString()}張</span>
       <span class="h-weight">${h.weight}%</span>
@@ -1279,6 +1293,112 @@ bindBtnGroup('tg-a-min',null,null);
 bindBtnGroup('tg-a-newmin',null,null);
 bindBtnGroup('tg-b-period',null,null);
 
+/* ══════════════════════ Chart Modal ══════════════════════ */
+let _chart=null;
+
+function closeChart(e){
+  if(e&&e.target!==document.getElementById('chartOverlay')) return;
+  document.getElementById('chartOverlay').classList.remove('open');
+  if(_chart){_chart.remove();_chart=null;}
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeChart();});
+
+async function openChart(code,name){
+  const ov=document.getElementById('chartOverlay');
+  document.getElementById('chartCode').textContent=code;
+  document.getElementById('chartName').textContent=name;
+  document.getElementById('chartPrice').innerHTML='';
+  const loading=document.getElementById('chartLoading');
+  const container=document.getElementById('chartContainer');
+  loading.style.display='flex'; container.innerHTML='';
+  if(_chart){_chart.remove();_chart=null;}
+  ov.classList.add('open');
+  try{
+    const [ohlcv,markers]=await Promise.all([fetchOHLCV(code),buildChartMarkers(code)]);
+    loading.style.display='none';
+    if(!ohlcv.length){
+      container.innerHTML='<div style="display:flex;height:100%;align-items:center;justify-content:center;color:var(--muted)">無法取得價格資料</div>';
+      return;
+    }
+    const last=ohlcv[ohlcv.length-1], prev=ohlcv.length>1?ohlcv[ohlcv.length-2]:null;
+    if(last&&prev){
+      const d=+(last.close-prev.close).toFixed(2), p=(d/prev.close*100).toFixed(2);
+      const s=d>=0?'+':'', c=d>=0?'var(--green)':'var(--red)';
+      document.getElementById('chartPrice').innerHTML=
+        `<b style="font-size:17px">${last.close.toLocaleString()}</b>&nbsp;<span style="color:${c}">${s}${d}&nbsp;(${s}${p}%)</span>`;
+    }
+    renderLwChart(container,ohlcv,markers);
+  }catch(err){
+    loading.textContent='載入失敗：'+err.message;
+  }
+}
+
+async function fetchOHLCV(code){
+  const r=await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${code}.TW?interval=1d&range=1y`);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const d=await r.json();
+  const res=d?.chart?.result?.[0];
+  if(!res) throw new Error('無資料');
+  const ts=res.timestamp, q=res.indicators.quote[0];
+  return ts.map((t,i)=>({
+    time:new Date(t*1000).toISOString().slice(0,10),
+    open: q.open[i]!=null  ? +q.open[i].toFixed(2)  : null,
+    high: q.high[i]!=null  ? +q.high[i].toFixed(2)  : null,
+    low:  q.low[i]!=null   ? +q.low[i].toFixed(2)   : null,
+    close:q.close[i]!=null ? +q.close[i].toFixed(2) : null,
+  })).filter(c=>c.open!=null&&c.close!=null);
+}
+
+async function buildChartMarkers(code){
+  const sorted=[...state.dates].reverse(); // oldest → newest
+  const markers=[];
+  let prev=0;
+  for(const d of sorted){
+    const snap=await loadDay(d);
+    if(!snap) continue;
+    let total=0;
+    for(const etfData of Object.values(snap.etfs||{})){
+      const h=(etfData.holdings||[]).find(h=>h.code===code);
+      if(h) total+=h.lots||0;
+    }
+    const dLots=total-prev;
+    const t=`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;
+    if(prev===0&&total>0)
+      markers.push({time:t,position:'belowBar',color:'#58a6ff',shape:'circle',text:`新進 ${total.toLocaleString()}張`});
+    else if(total===0&&prev>0)
+      markers.push({time:t,position:'aboveBar',color:'#8b949e',shape:'circle',text:'出清'});
+    else if(dLots>0)
+      markers.push({time:t,position:'belowBar',color:'#3fb950',shape:'arrowUp',text:`+${dLots.toLocaleString()}張`});
+    else if(dLots<0)
+      markers.push({time:t,position:'aboveBar',color:'#f85149',shape:'arrowDown',text:`${dLots.toLocaleString()}張`});
+    prev=total;
+  }
+  return markers;
+}
+
+function renderLwChart(container,ohlcv,markers){
+  _chart=LightweightCharts.createChart(container,{
+    layout:{background:{color:'#161b22'},textColor:'#e6edf3'},
+    grid:{vertLines:{color:'#21262d'},horzLines:{color:'#21262d'}},
+    crosshair:{mode:1},
+    rightPriceScale:{borderColor:'#30363d'},
+    timeScale:{borderColor:'#30363d',timeVisible:false},
+    width:container.clientWidth,
+    height:container.clientHeight,
+  });
+  const cs=_chart.addCandlestickSeries({
+    upColor:'#3fb950',downColor:'#f85149',
+    borderUpColor:'#3fb950',borderDownColor:'#f85149',
+    wickUpColor:'#3fb950',wickDownColor:'#f85149',
+  });
+  cs.setData(ohlcv);
+  if(markers.length) cs.setMarkers(markers);
+  _chart.timeScale().fitContent();
+  new ResizeObserver(()=>{
+    if(_chart) _chart.applyOptions({width:container.clientWidth,height:container.clientHeight});
+  }).observe(container);
+}
+
 /* ══════════════════════ Boot ══════════════════════ */
 (async()=>{
   state.metaData=await loadMeta();
@@ -1287,5 +1407,20 @@ bindBtnGroup('tg-b-period',null,null);
   await renderMulti();
 })();
 </script>
+
+<div class="chart-ov" id="chartOverlay" onclick="closeChart(event)">
+  <div class="chart-modal">
+    <div class="chart-hdr">
+      <span id="chartCode" style="font-size:17px;font-weight:700;color:var(--blue)"></span>
+      <span id="chartName" style="font-weight:600;font-size:17px"></span>
+      <span id="chartPrice" style="color:var(--muted);font-size:14px;margin-left:4px"></span>
+      <button class="chart-x" onclick="closeChart()">×</button>
+    </div>
+    <div class="chart-body">
+      <div id="chartLoading">載入中…</div>
+      <div id="chartContainer"></div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
