@@ -1342,7 +1342,7 @@ async function openChart(code,name){
 
 async function fetchOHLCV(code){
   const start=new Date();
-  start.setFullYear(start.getFullYear()-1);
+  start.setFullYear(start.getFullYear()-5);
   const startStr=start.toISOString().slice(0,10);
   const url=`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${code}&start_date=${startStr}`;
   const r=await fetch(url);
