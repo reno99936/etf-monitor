@@ -487,7 +487,7 @@ def build_telegram_a(
             if not h.get("is_tw", True):
                 continue
             prev = comp_h.get(h["code"])
-            if prev and h["weight"] - prev["weight"] < -0.01:
+            if prev and h["lots"] - prev["lots"] < 0:
                 dec_map[h["code"]] = dec_map.get(h["code"], 0) + 1
 
     dec_filtered = [(c, n) for c, n in dec_map.items() if n >= min_count]
@@ -611,7 +611,7 @@ def build_telegram_b(etf_code: str, today_data: dict, compare_data: dict | None)
 
     inc = sorted([c for c in changes if c["dLots"] > 0 or c["dW"] > 0.01],
                  key=lambda c: c["dLots"], reverse=True)
-    dec = sorted([c for c in changes if c["dLots"] < 0 or c["dW"] < -0.01],
+    dec = sorted([c for c in changes if c["dLots"] < 0],
                  key=lambda c: c["dLots"])
 
     msg += "📈 增加持股前五名：\n"

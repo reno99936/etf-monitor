@@ -533,7 +533,8 @@ function analyzeChanges(todayData, compareData, mode){
       const prev=compMap.get(h.code);
       const dW=+(h.weight-(prev?.weight||0)).toFixed(4);
       const dShares=h.shares-(prev?.shares||0);
-      const isInc=dW>0.01, isDec=dW<-0.01;
+      const dLotsChk=Math.round(dShares/1000);
+      const isInc=dW>0.01, isDec=dLotsChk<0;
       if(!((mode==='increase'&&isInc)||(mode==='decrease'&&isDec))) continue;
 
       if(!stockMap[h.code]) stockMap[h.code]={
@@ -845,7 +846,7 @@ async function renderSingle(){
     changes.push({...th,dW,dLots,prevLots:prev.lots,prevW:prev.weight});
   }
   const inc=changes.filter(c=>c.dLots>0||c.dW>0.01).sort((a,b)=>b.dLots-a.dLots);
-  const dec=changes.filter(c=>c.dLots<0||c.dW<-0.01).sort((a,b)=>a.dLots-b.dLots);
+  const dec=changes.filter(c=>c.dLots<0).sort((a,b)=>a.dLots-b.dLots);
 
   function holdingRow(h,i,showChange){
     const signL=h.dLots>=0?'+':'', signW=h.dW>=0?'+':'';
@@ -1026,7 +1027,7 @@ function buildTemplateB(period){
       changes.push({...th,dW,dLots});
     }
     const inc=changes.filter(c=>c.dLots>0||c.dW>0.01).sort((a,b)=>b.dLots-a.dLots);
-    const dec=changes.filter(c=>c.dLots<0||c.dW<-0.01).sort((a,b)=>a.dLots-b.dLots);
+    const dec=changes.filter(c=>c.dLots<0).sort((a,b)=>a.dLots-b.dLots);
     m+='📈 增加持股前五名：\n';
     if(inc.length){
       inc.slice(0,5).forEach(h=>{
