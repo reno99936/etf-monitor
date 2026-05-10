@@ -1334,19 +1334,15 @@ async function openChart(code,name){
 }
 
 async function fetchOHLCV(code){
-  const r=await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${code}.TW?interval=1d&range=1y`);
+  const start=new Date();
+  start.setFullYear(start.getFullYear()-1);
+  const startStr=start.toISOString().slice(0,10);
+  const url=`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${code}&start_date=${startStr}`;
+  const r=await fetch(url);
   if(!r.ok) throw new Error('HTTP '+r.status);
   const d=await r.json();
-  const res=d?.chart?.result?.[0];
-  if(!res) throw new Error('無資料');
-  const ts=res.timestamp, q=res.indicators.quote[0];
-  return ts.map((t,i)=>({
-    time:new Date(t*1000).toISOString().slice(0,10),
-    open: q.open[i]!=null  ? +q.open[i].toFixed(2)  : null,
-    high: q.high[i]!=null  ? +q.high[i].toFixed(2)  : null,
-    low:  q.low[i]!=null   ? +q.low[i].toFixed(2)   : null,
-    close:q.close[i]!=null ? +q.close[i].toFixed(2) : null,
-  })).filter(c=>c.open!=null&&c.close!=null);
+  if(d.status!==200||!d.data?.length) throw new Error(d.msg||'無資料');
+  return d.data.map(b=>({time:b.date,open:b.open,high:b.max,low:b.min,close:b.close}));
 }
 
 async function buildChartMarkers(code){
