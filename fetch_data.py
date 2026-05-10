@@ -442,9 +442,9 @@ def build_telegram_a(
                 continue
             prev = comp_h.get(h["code"])
             dW = round(h["weight"] - (prev["weight"] if prev else 0), 4)
-            if dW <= 0.01:
-                continue
             dLots = h["lots"] - (prev["lots"] if prev else 0)
+            if dLots <= 0:
+                continue
             c = h["code"]
             if c not in stock_map:
                 stock_map[c] = {"code": c, "name": h["name"], "etfs": [], "total_lots": 0, "total_val": 0}
@@ -609,7 +609,7 @@ def build_telegram_b(etf_code: str, today_data: dict, compare_data: dict | None)
         dLots = th["lots"] - prev["lots"]
         changes.append({**th, "dW": dW, "dLots": dLots})
 
-    inc = sorted([c for c in changes if c["dLots"] > 0 or c["dW"] > 0.01],
+    inc = sorted([c for c in changes if c["dLots"] > 0],
                  key=lambda c: c["dLots"], reverse=True)
     dec = sorted([c for c in changes if c["dLots"] < 0],
                  key=lambda c: c["dLots"])
