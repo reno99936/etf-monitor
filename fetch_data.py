@@ -157,13 +157,17 @@ def fetch_moneydj_holdings(etf_code: str) -> list[dict]:
         return []
 
 
-def fetch_stock_prices(codes: list[str]) -> dict[str, float]:
-    """批次從 TWSE MIS API 取得收盤/即時股價"""
+def fetch_stock_prices(code_exchange_pairs: list[tuple[str, str]]) -> dict[str, float]:
+    """批次從 TWSE MIS API 取得收盤/即時股價（支援上市 tse_ / 上櫃 otc_）"""
     prices: dict[str, float] = {}
     batch_size = 40
-    for i in range(0, len(codes), batch_size):
-        batch = codes[i: i + batch_size]
-        ex_ch = "|".join(f"tse_{c}.tw" for c in batch)
+    for i in range(0, len(code_exchange_pairs), batch_size):
+        batch = code_exchange_pairs[i: i + batch_size]
+        # 上市(TW)→tse_ ; 上櫃(TWO)→otc_
+        ex_ch = "|".join(
+            f"{'otc' if ex == 'TWO' else 'tse'}_{c}.tw"
+            for c, ex in batch
+        )
         url = (
             "https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
             f"?ex_ch={ex_ch}&json=1&delay=0"
@@ -172,9 +176,12 @@ def fetch_stock_prices(codes: list[str]) -> dict[str, float]:
             r = requests.get(url, headers={"User-Agent": HEADERS["User-Agent"]}, timeout=15)
             for item in r.json().get("msgArray", []):
                 c = item.get("c", "")
-                raw = item.get("z") or item.get("y", "")
+                # z=即時/收盤  y=昨收；"-" 代表停止交易或尚未成交
+                z = item.get("z", "")
+                y = item.get("y", "")
+                raw = z if z and z != "-" else (y if y and y != "-" else "")
                 try:
-                    if raw and raw != "-":
+                    if raw:
                         prices[c] = float(raw)
                 except ValueError:
                     pass
@@ -293,13 +300,15 @@ def main():
     etf_meta = fetch_etf_meta()
 
     # ── 批次取台股股價 ───────────────────────────────────────
-    tw_codes: set[str] = {
-        h["code"] for etf_data in all_etf_data.values()
-        for h in etf_data["holdings"] if h.get("is_tw", True)
-    }
-    if tw_codes:
-        print(f"\n  取得 {len(tw_codes)} 檔台股價格...")
-        prices = fetch_stock_prices(sorted(tw_codes))
+    tw_map: dict[str, str] = {}  # code → exchange
+    for etf_data in all_etf_data.values():
+        for h in etf_data["holdings"]:
+            if h.get("is_tw", True):
+                tw_map[h["code"]] = h.get("exchange", "TW")
+    if tw_map:
+        pairs = sorted(tw_map.items())  # [(code, exchange), ...]
+        print(f"\n  取得 {len(pairs)} 檔台股價格...")
+        prices = fetch_stock_prices(pairs)
         print(f"  → 成功 {len(prices)} 檔")
         for etf_data in all_etf_data.values():
             for h in etf_data["holdings"]:
@@ -307,6 +316,16 @@ def main():
                     p = prices.get(h["code"], 0.0)
                     h["price"] = p
                     h["value"] = round(h["shares"] * p)
+
+    # ── 用持股市值計算各 ETF 的 AUM（作為 yfinance 無法取得時的 fallback）──
+    for etf_code, etf_data in all_etf_data.items():
+        total_val = sum(h.get("value", 0) for h in etf_data["holdings"])
+        if total_val > 0 and etf_meta.get(etf_code) is not None:
+            aum_b = round(total_val / 1e8, 1)
+            # 只在 yfinance 抓不到時才用估算值
+            if not etf_meta[etf_code].get("aum_b"):
+                etf_meta[etf_code]["aum_b"] = aum_b
+                etf_meta[etf_code]["aum"] = total_val
 
     # ── 儲存當日 JSON ─────────────────────────────────────────
     now = datetime.now(TAIPEI_TZ)

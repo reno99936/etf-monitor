@@ -830,7 +830,9 @@ function rankBadge(i){
   return `<span class="rank-num ${cls}">${i+1}</span>`;
 }
 
+let _renderSingleId=0;
 async function renderSingle(){
+  const myId=++_renderSingleId;
   const content=document.getElementById('single-content');
   if(!state.dates.length){
     content.innerHTML=`<div class="state-msg"><span class="emoji">📭</span>尚無資料</div>`; return;
@@ -839,6 +841,7 @@ async function renderSingle(){
   const todayStr=state.dates[0];
   const compareStr=prevTradingDays(todayStr,state.singlePeriod);
   const [todayData,compareData]=await Promise.all([loadDay(todayStr),loadDay(compareStr)]);
+  if(myId!==_renderSingleId) return; // 已有更新的呼叫，捨棄這次
   if(!todayData){
     content.innerHTML=`<div class="state-msg"><span class="emoji">⚠️</span>資料載入失敗</div>`; return;
   }
