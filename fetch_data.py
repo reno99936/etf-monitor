@@ -92,17 +92,18 @@ def fetch_moneydj_holdings(etf_code: str) -> list[dict]:
         soup = BeautifulSoup(r.text, "lxml")
 
         today_tw = datetime.now(TAIPEI_TZ).date()
-        date_tag = soup.find(string=re.compile(r"資料日期"))
-        if date_tag:
-            m = re.search(r"(\d{4}/\d{2}/\d{2})", date_tag)
-            if m:
-                page_date_str = m.group(1)
-                page_date = datetime.strptime(page_date_str, "%Y/%m/%d").date()
-                if page_date < today_tw:
-                    print(f"  ⚠  {etf_code} 資料日期 {page_date_str}，尚未更新至今日 {today_tw}")
-                    return []
-                else:
-                    print(f"  ✓  {etf_code} 資料日期 {page_date_str} 符合今日")
+        m_date = re.search(r"資料日期[：:]\s*(\d{4}/\d{2}/\d{2})", r.text)
+        if m_date:
+            page_date_str = m_date.group(1)
+            page_date = datetime.strptime(page_date_str, "%Y/%m/%d").date()
+            days_old = (today_tw - page_date).days
+            if days_old > 7:
+                print(f"  ✗  {etf_code} 資料日期 {page_date_str}，超過 7 天未更新，略過")
+                return []
+            elif days_old > 0:
+                print(f"  ⚠  {etf_code} 資料日期 {page_date_str}（{days_old}天前，ETF 今日尚未更新，沿用）")
+            else:
+                print(f"  ✓  {etf_code} 資料日期 {page_date_str} 符合今日")
 
         target_table = None
         for table in soup.find_all("table", class_="datalist"):
@@ -191,52 +192,87 @@ def fetch_stock_prices(code_exchange_pairs: list[tuple[str, str]]) -> dict[str, 
     return prices
 
 
-def fetch_etf_meta() -> dict:
-    """用 yfinance 抓各 ETF 的規模（AUM）與 YTD 漲跌幅"""
-    if not HAS_YFINANCE:
-        print("  ⚠ yfinance 未安裝，略過 meta 抓取")
-        return {}
+def fetch_twse_etf_aum() -> dict[str, dict]:
+    """從 TWSE e添富平台抓全部 ETF 的規模（totalAv 億元）與現價（close1）"""
+    url = "https://www.twse.com.tw/zh/ETFortune/ajaxProductsResult"
+    headers = {
+        "User-Agent": HEADERS["User-Agent"],
+        "Referer": "https://www.twse.com.tw/zh/ETFortune/products",
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+    }
+    # 送出寬鬆範圍以取得所有 ETF，不做篩選
+    body = "rangeTotalAv=0&rangeTotalAv=999999&rangeValueYTD=0&rangeValueYTD=999999&rangeClose1=0&rangeClose1=99999&stkNo=&sort=&orderBy="
+    result: dict[str, dict] = {}
+    try:
+        r = requests.post(url, data=body, headers=headers, timeout=20)
+        payload = r.json()
+        if payload.get("status") != "success":
+            print(f"  ⚠ TWSE e添富 API 回傳非 success: {payload.get('status')}")
+            return result
+        for item in payload.get("data", []):
+            code = item.get("stockNo", "").strip()
+            if not code:
+                continue
+            try:
+                aum_b = float(item["totalAv"].replace(",", "")) if item.get("totalAv") else None
+            except (ValueError, AttributeError):
+                aum_b = None
+            try:
+                price = float(item["close1"].replace(",", "")) if item.get("close1") else 0.0
+            except (ValueError, AttributeError):
+                price = 0.0
+            result[code] = {"aum_b": aum_b, "current_price": price}
+        print(f"  ✓ TWSE e添富：取得 {len(result)} 檔 ETF 規模資料")
+    except Exception as e:
+        print(f"  ✗ TWSE e添富 API 失敗：{e}")
+    return result
 
+
+def fetch_etf_meta() -> dict:
+    """抓各 ETF 的規模（AUM）與 YTD 漲跌幅。
+    AUM 來源：TWSE e添富平台（主要）/ 持股市值估算（fallback）。
+    YTD 漲跌幅：yfinance 歷史價格計算。"""
     now_tw = datetime.now(TAIPEI_TZ)
     prev_year = now_tw.year - 1
     ytd_start = f"{prev_year}-12-31"
     ytd_end   = f"{now_tw.year}-01-10"
 
+    # 先從 TWSE e添富取規模與現價
+    twse_data = fetch_twse_etf_aum()
+
     meta = {}
     for etf_code, _ in ETF_LIST:
-        try:
-            tk = yf.Ticker(f"{etf_code}.TW")
-            info = tk.info
+        twse = twse_data.get(etf_code, {})
+        aum_b = twse.get("aum_b")
+        current_price = twse.get("current_price", 0.0)
 
-            aum = info.get("totalAssets") or 0
-            aum_b = round(aum / 1e8, 1) if aum else None
+        # YTD 漲跌幅：用 yfinance 抓歷史收盤價計算
+        ytd_return = None
+        ytd_price  = 0.0
+        if HAS_YFINANCE:
+            try:
+                tk = yf.Ticker(f"{etf_code}.TW")
+                hist_ytd = tk.history(start=ytd_start, end=ytd_end, auto_adjust=True)
+                ytd_price = float(hist_ytd["Close"].iloc[0]) if not hist_ytd.empty else 0.0
+                if not current_price:
+                    hist_now = tk.history(period="2d", auto_adjust=True)
+                    current_price = float(hist_now["Close"].iloc[-1]) if not hist_now.empty else 0.0
+                if ytd_price and current_price:
+                    ytd_return = round((current_price - ytd_price) / ytd_price * 100, 2)
+                time.sleep(0.6)
+            except Exception as e:
+                print(f"  ⚠ {etf_code} YTD 計算失敗: {e}")
 
-            # 年初基準價（去年底最後一個交易日）
-            hist_ytd = tk.history(start=ytd_start, end=ytd_end, auto_adjust=True)
-            ytd_price = float(hist_ytd["Close"].iloc[0]) if not hist_ytd.empty else 0.0
-
-            # 現價
-            hist_now = tk.history(period="2d", auto_adjust=True)
-            current_price = float(hist_now["Close"].iloc[-1]) if not hist_now.empty else 0.0
-
-            ytd_return = (
-                round((current_price - ytd_price) / ytd_price * 100, 2)
-                if ytd_price else None
-            )
-
-            meta[etf_code] = {
-                "aum": aum, "aum_b": aum_b,
-                "current_price": current_price,
-                "ytd_price": ytd_price,
-                "ytd_return": ytd_return,
-            }
-            aum_str = f"{aum_b}億" if aum_b else "N/A"
-            ytd_str = f"{ytd_return:+.1f}%" if ytd_return is not None else "N/A"
-            print(f"  {etf_code}: AUM={aum_str}  YTD={ytd_str}  現價={current_price}")
-            time.sleep(0.8)
-        except Exception as e:
-            print(f"  ⚠ {etf_code} meta 失敗: {e}")
-            meta[etf_code] = {"aum": 0, "aum_b": None, "current_price": 0, "ytd_price": 0, "ytd_return": None}
+        meta[etf_code] = {
+            "aum_b": aum_b,
+            "current_price": current_price,
+            "ytd_price": ytd_price,
+            "ytd_return": ytd_return,
+        }
+        aum_str = f"{aum_b}億" if aum_b else "N/A"
+        ytd_str = f"{ytd_return:+.1f}%" if ytd_return is not None else "N/A"
+        print(f"  {etf_code}: AUM={aum_str}  YTD={ytd_str}  現價={current_price}")
 
     return meta
 
@@ -252,11 +288,6 @@ def main():
         print("  ℹ 今日為台股休市日（國定假日），略過資料抓取。")
         return
 
-    # 截止時間：台北 22:00（若啟動時已超過22:00，則給2小時）
-    cutoff = now_start.replace(hour=22, minute=0, second=0, microsecond=0)
-    if now_start >= cutoff:
-        cutoff = now_start + timedelta(hours=2)
-
     os.makedirs("data", exist_ok=True)
 
     etf_name_map = dict(ETF_LIST)
@@ -266,32 +297,17 @@ def main():
     pending: set[str] = set(etf_name_map.keys())
     attempt = 0
 
-    # ── 輪詢直到全部取得或截止時間 ──────────────────────────────
-    while pending and datetime.now(TAIPEI_TZ) < cutoff:
-        attempt += 1
-        now = datetime.now(TAIPEI_TZ)
-        print(f"\n=== 第 {attempt} 次嘗試  {now.strftime('%Y-%m-%d %H:%M:%S')} ===\n")
-
-        for etf_code in sorted(pending):
-            print(f"  [{etf_code}] {etf_name_map[etf_code]}")
-            holdings = fetch_moneydj_holdings(etf_code)
-            if holdings:
-                all_etf_data[etf_code]["holdings"] = holdings
-                pending.discard(etf_code)
-                print(f"        → ✓ {len(holdings)} 檔")
-            else:
-                print(f"        → 待更新，下次重試")
-            time.sleep(3)
-
-        if pending:
-            now = datetime.now(TAIPEI_TZ)
-            wait_until = now + timedelta(minutes=30)
-            if wait_until < cutoff:
-                print(f"\n  ⏳ {len(pending)} 檔尚未更新，等到 {wait_until.strftime('%H:%M')} 重試...")
-                time.sleep(1800)
-            else:
-                print(f"\n  ⏰ 接近截止時間，放棄剩餘 {len(pending)} 檔")
-                break
+    # ── 抓取所有 ETF（單輪，7天內資料均接受）────────────────────
+    print(f"\n=== 開始抓取  {datetime.now(TAIPEI_TZ).strftime('%Y-%m-%d %H:%M:%S')} ===\n")
+    for etf_code in sorted(pending):
+        print(f"  [{etf_code}] {etf_name_map[etf_code]}")
+        holdings = fetch_moneydj_holdings(etf_code)
+        if holdings:
+            all_etf_data[etf_code]["holdings"] = holdings
+            print(f"        → ✓ {len(holdings)} 檔")
+        else:
+            print(f"        → 無法取得持股資料")
+        time.sleep(3)
 
     failed = [code for code in etf_name_map if not all_etf_data[code]["holdings"]]
 
@@ -317,15 +333,12 @@ def main():
                     h["price"] = p
                     h["value"] = round(h["shares"] * p)
 
-    # ── 用持股市值計算各 ETF 的 AUM（作為 yfinance 無法取得時的 fallback）──
+    # ── 用持股市值估算 AUM（只作為 TWSE API 無法取得時的 fallback）──
     for etf_code, etf_data in all_etf_data.items():
-        total_val = sum(h.get("value", 0) for h in etf_data["holdings"])
-        if total_val > 0 and etf_meta.get(etf_code) is not None:
-            aum_b = round(total_val / 1e8, 1)
-            # 只在 yfinance 抓不到時才用估算值
-            if not etf_meta[etf_code].get("aum_b"):
-                etf_meta[etf_code]["aum_b"] = aum_b
-                etf_meta[etf_code]["aum"] = total_val
+        if etf_meta.get(etf_code) and not etf_meta[etf_code].get("aum_b"):
+            total_val = sum(h.get("value", 0) for h in etf_data["holdings"])
+            if total_val > 0:
+                etf_meta[etf_code]["aum_b"] = round(total_val / 1e8, 1)
 
     # ── 儲存當日 JSON ─────────────────────────────────────────
     now = datetime.now(TAIPEI_TZ)

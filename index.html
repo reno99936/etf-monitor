@@ -301,40 +301,16 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 <div id="tab-notify" class="tab-content">
   <div class="notify-grid">
 
-    <!-- Bot 設定 -->
+    <!-- Telegram 狀態 -->
     <div class="notify-card">
-      <h3>🤖 Telegram Bot 設定</h3>
-      <div class="form-group">
-        <label class="form-label">Bot Token</label>
-        <input class="form-input" id="tg-token" type="password" placeholder="1234567890:AAF…">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Chat ID</label>
-        <input class="form-input" id="tg-chatid" type="text" placeholder="6157383703">
-      </div>
+      <h3>🤖 Telegram 推播</h3>
+      <p class="config-desc" style="margin-bottom:12px">Token 與 Chat ID 已設定於本機 <code>data/config.json</code>，無需在此輸入。</p>
       <div class="action-row">
-        <button class="action-btn primary" onclick="saveTgConfig()">💾 儲存設定</button>
-        <button class="action-btn" onclick="testTg()">📨 測試推播</button>
+        <button class="action-btn" onclick="testTg()">📨 發送測試訊息</button>
         <span id="tg-save-status"></span>
       </div>
     </div>
 
-    <!-- GitHub PAT -->
-    <div class="notify-card">
-      <h3>🔑 GitHub PAT 設定</h3>
-      <div class="form-group">
-        <label class="form-label">Personal Access Token</label>
-        <input class="form-input" id="gh-pat" type="password" placeholder="ghp_xxxxxxxxxxxx">
-        <div class="pat-hint">
-          需要申請 PAT 嗎？<a href="https://github.com/settings/tokens/new?scopes=workflow,contents&description=etf-monitor" target="_blank">點此前往申請</a><br>
-          勾選 <code>workflow</code> 和 <code>repo</code> 權限 → Generate token → 複製貼上
-        </div>
-      </div>
-      <div class="action-row">
-        <button class="action-btn primary" onclick="savePat()">💾 儲存 PAT</button>
-        <span id="pat-save-status"></span>
-      </div>
-    </div>
 
     <!-- 樣板A -->
     <div class="notify-card">
@@ -393,21 +369,15 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
       <pre class="preview-box" id="preview-b"></pre>
     </div>
 
-    <!-- 儲存設定到 GitHub -->
+    <!-- 本機排程說明 -->
     <div class="notify-card wide">
-      <h3>☁️ 儲存設定到 GitHub（自動排程連動）</h3>
+      <h3>🖥️ 本機自動排程</h3>
       <p class="config-desc">
-        點擊「儲存」後，上方所有推播設定（觀察天數、最少家數、新建倉門檻、樣板B追蹤ETF）
-        會寫入 GitHub repo 的 <code>data/config.json</code>。
-        下次 GitHub Actions 自動執行時，Python 腳本會優先讀取這份設定。<br>
-        <strong style="color:var(--gold)">需先設定 GitHub PAT（具備 repo + workflow 權限）</strong>
+        資料抓取與 Telegram 推播由本機 Windows 工作排程管理，<strong>每週一至週五 19:30 自動執行</strong>。<br>
+        如需修改推播設定（觀察天數、家數門檻、追蹤 ETF），請直接編輯
+        <code>data/config.json</code>。<br>
+        手動執行：在專案資料夾雙擊 <code>run.bat</code>，或終端機執行 <code>python fetch_data.py</code>。
       </p>
-      <div class="action-row">
-        <button class="action-btn success" onclick="saveConfigToGitHub()">☁️ 儲存設定到 GitHub</button>
-        <button class="action-btn" onclick="previewConfig()">👁 預覽設定內容</button>
-        <span id="config-save-status"></span>
-      </div>
-      <pre class="config-preview" id="config-preview" style="display:none"></pre>
     </div>
 
   </div>
@@ -438,7 +408,6 @@ const ETF_MAP = {
   '00999A':{ name:'主動野村臺灣高息', short:'野村高息' },
 };
 const ETF_LIST = Object.entries(ETF_MAP).map(([code,info])=>({code,...info}));
-const REPO = 'reno99936/etf-monitor';
 
 /* ══════════════════════ State ══════════════════════ */
 const state = {
@@ -461,7 +430,7 @@ function rebuildEtfSelect(){
   const sorted=[...ETF_LIST];
   const meta=state.metaData;
   if(state.etfSort==='aum'){
-    sorted.sort((a,b)=>(meta[b.code]?.aum||0)-(meta[a.code]?.aum||0));
+    sorted.sort((a,b)=>(meta[b.code]?.aum_b||0)-(meta[a.code]?.aum_b||0));
   } else if(state.etfSort==='ytd'){
     sorted.sort((a,b)=>(meta[b.code]?.ytd_return??-999)-(meta[a.code]?.ytd_return??-999));
   }
@@ -883,8 +852,14 @@ async function renderSingle(){
   }
 
   const etfInfo=ETF_MAP[etfCode];
+  const etfMeta=state.metaData[etfCode]||{};
+  const aumStr=etfMeta.aum_b!=null?`規模 ${etfMeta.aum_b}億`:'';
+  const ytdStr=etfMeta.ytd_return!=null?`YTD ${etfMeta.ytd_return>=0?'+':''}${etfMeta.ytd_return}%`:'';
+  const priceStr=etfMeta.current_price?`現價 ${etfMeta.current_price}`:'';
+  const metaParts=[aumStr,ytdStr,priceStr].filter(Boolean).join('  ｜  ');
   let html=`<div style="margin-bottom:6px;color:var(--muted);font-size:13px">
     ${etfCode} ${etfInfo?.name||''} ｜ 對比 ${fmtDate(compareStr)} → ${fmtDate(todayStr)}
+    ${metaParts?`<span style="margin-left:8px;color:#58a6ff;font-size:12px">${metaParts}</span>`:''}
   </div>`;
 
   if(newHolds.length){
@@ -922,33 +897,15 @@ async function renderSingle(){
 }
 
 /* ══════════════════════ Telegram ══════════════════════ */
-function getTgConfig(){
-  return{ token:localStorage.getItem('tg_token')||'', chatId:localStorage.getItem('tg_chat_id')||'' };
-}
-
-function saveTgConfig(){
-  const token=document.getElementById('tg-token').value.trim();
-  const chatId=document.getElementById('tg-chatid').value.trim();
-  if(!token||!chatId){ showToast('請填入 Token 和 Chat ID','error'); return; }
-  localStorage.setItem('tg_token',token);
-  localStorage.setItem('tg_chat_id',chatId);
-  document.getElementById('tg-token').classList.add('saved');
-  document.getElementById('tg-chatid').classList.add('saved');
-  document.getElementById('tg-save-status').innerHTML='<span class="status-badge status-ok">✓ 已儲存</span>';
-  showToast('Telegram 設定已儲存');
-}
-
 async function sendTg(text){
-  const{token,chatId}=getTgConfig();
-  if(!token||!chatId){ showToast('請先儲存 Bot Token 和 Chat ID','error'); return false; }
   try{
-    const r=await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{
+    const r=await fetch('/api/send-telegram',{
       method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({chat_id:chatId,text,parse_mode:'HTML'}),
+      body:JSON.stringify({text}),
     });
     const d=await r.json();
     if(d.ok){ showToast('✅ Telegram 推播成功！'); return true; }
-    showToast(`推播失敗：${d.description}`,'error'); return false;
+    showToast('推播失敗，請確認 config.json 設定','error'); return false;
   }catch(e){ showToast(`推播失敗：${e.message}`,'error'); return false; }
 }
 
@@ -1093,140 +1050,53 @@ function previewTemplateB(){
   el.style.display=el.style.display==='none'?'block':'none';
 }
 
-/* ══════════════════════ GitHub Actions / Config ══════════════════════ */
-function savePat(){
-  const pat=document.getElementById('gh-pat').value.trim();
-  if(!pat||(!pat.startsWith('ghp_')&&!pat.startsWith('github_pat_'))){
-    showToast('PAT 格式不正確，應以 ghp_ 開頭','error'); return;
-  }
-  localStorage.setItem('gh_pat',pat);
-  document.getElementById('gh-pat').classList.add('saved');
-  document.getElementById('pat-save-status').innerHTML='<span class="status-badge status-ok">✓ 已儲存</span>';
-  showToast('GitHub PAT 已儲存');
-}
-
-function buildConfig(){
-  return {
-    tg_period:   getTgPeriod('tg-a-period'),
-    tg_min_count:getTgMin('tg-a-min'),
-    tg_new_min:  getTgNewMin(),
-    tg_send_a:   true,
-    tg_send_b:   true,
-    tg_etfs_b:   getSelectedBEtfs(),
-  };
-}
-
-function previewConfig(){
-  const el=document.getElementById('config-preview');
-  el.textContent=JSON.stringify(buildConfig(),null,2);
-  el.style.display=el.style.display==='none'?'block':'none';
-}
-
-async function saveConfigToGitHub(){
-  const pat=localStorage.getItem('gh_pat')||'';
-  if(!pat){ showToast('請先設定 GitHub PAT','error'); return; }
-  const btn=document.querySelector('[onclick="saveConfigToGitHub()"]');
-  btn.classList.add('loading');
-  document.getElementById('config-save-status').innerHTML='';
-  try{
-    const jsonStr=JSON.stringify(buildConfig(),null,2);
-    const content=btoa(unescape(encodeURIComponent(jsonStr)));
-    const headers={
-      'Authorization':`Bearer ${pat}`,
-      'Accept':'application/vnd.github+json',
-      'X-GitHub-Api-Version':'2022-11-28',
-      'Content-Type':'application/json',
-    };
-    // 取現有 SHA
-    const getR=await fetch(`https://api.github.com/repos/${REPO}/contents/data/config.json`,{headers});
-    const sha=getR.ok?(await getR.json()).sha:undefined;
-    // PUT
-    const putR=await fetch(`https://api.github.com/repos/${REPO}/contents/data/config.json`,{
-      method:'PUT', headers,
-      body:JSON.stringify({
-        message:'config: 更新 Telegram 推播設定',
-        content,
-        ...(sha?{sha}:{}),
-      }),
-    });
-    if(putR.ok){
-      document.getElementById('config-save-status').innerHTML='<span class="status-badge status-ok">✓ 已儲存到 GitHub</span>';
-      showToast('✅ 設定已儲存到 GitHub！下次自動執行時套用。');
-    } else {
-      const d=await putR.json().catch(()=>({}));
-      showToast(`儲存失敗：${d.message||putR.status}`,'error');
-    }
-  }catch(e){ showToast(`儲存失敗：${e.message}`,'error'); }
-  finally{ btn.classList.remove('loading'); }
-}
+/* ══════════════════════ 本機更新 ══════════════════════ */
+let _pollTimer=null;
 
 async function triggerUpdate(){
-  const pat=localStorage.getItem('gh_pat')||'';
-  if(!pat){
-    document.querySelector('[data-tab="notify"]')?.click();
-    showToast('請先在「設定與推播」分頁設定 GitHub PAT','error'); return;
-  }
   const btn=document.getElementById('update-btn');
   btn.classList.add('loading'); btn.textContent='⏳ 更新中…';
   try{
-    const r=await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/update.yml/dispatches`,{
-      method:'POST',
-      headers:{'Authorization':`Bearer ${pat}`,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},
-      body:JSON.stringify({ref:'main'}),
-    });
-    if(r.status===204){
-      showToast('✅ 已觸發 GitHub Actions，等待資料更新中…');
-      // 記錄當前資料的 timestamp，用來偵測是否有新資料
-      const todayStr=state.dates[0]||'';
-      let prevTs='';
-      if(todayStr){
-        try{
-          const jr=await fetch(`data/${todayStr}.json?${Date.now()}`);
-          if(jr.ok){ const jd=await jr.json(); prevTs=jd.timestamp||''; }
-        }catch(e){}
-      }
-      // 每 15 秒 polling，最多等 3 分鐘（12 次）
-      let attempt=0;
-      const timer=setInterval(async()=>{
-        attempt++;
-        btn.textContent=`⏳ 等待更新… (${attempt*15}s)`;
-        if(attempt>12){
-          clearInterval(timer);
-          btn.classList.remove('loading'); btn.textContent='🔄 手動更新';
-          showToast('⏱ 等待逾時，請手動重整頁面','error');
-          return;
-        }
-        try{
-          const ir=await fetch('data/index.json?'+Date.now());
-          if(!ir.ok) return;
-          const idx=await ir.json();
-          const newDates=idx.dates||[];
-          const latestStr=newDates[0]||'';
-          if(!latestStr) return;
-          const jr=await fetch(`data/${latestStr}.json?${Date.now()}`);
-          if(!jr.ok) return;
-          const jd=await jr.json();
-          const newTs=jd.timestamp||'';
-          if(newTs && newTs!==prevTs){
-            clearInterval(timer);
-            state.cache={};
-            state.dates=newDates;
-            btn.classList.remove('loading'); btn.textContent='🔄 手動更新';
-            showToast('✅ 資料已更新！');
-            await renderMulti();
-            if(document.getElementById('tab-single').classList.contains('active')) await renderSingle();
-          }
-        }catch(e){}
-      },15000);
+    const r=await fetch('/api/update',{method:'POST'});
+    const d=await r.json();
+    if(d.status==='started'){
+      showToast('📡 開始抓取資料…');
     } else {
-      const d=await r.json().catch(()=>({}));
-      showToast(`觸發失敗：${d.message||r.status}，請確認 PAT 有 workflow 權限`,'error');
-      btn.classList.remove('loading'); btn.textContent='🔄 手動更新';
+      showToast('⏳ 資料抓取已在進行中');
     }
+    _startPoll();
   }catch(e){
     showToast(`觸發失敗：${e.message}`,'error');
     btn.classList.remove('loading'); btn.textContent='🔄 手動更新';
   }
+}
+
+function _startPoll(){
+  if(_pollTimer) return;
+  const btn=document.getElementById('update-btn');
+  let secs=0;
+  _pollTimer=setInterval(async()=>{
+    secs+=10;
+    try{
+      const r=await fetch('/api/status');
+      const s=await r.json();
+      if(s.running){
+        const m=Math.floor(secs/60), sec=secs%60;
+        btn.textContent=`⏳ 抓取中… ${m>0?m+'m':''}${sec}s`;
+      } else {
+        clearInterval(_pollTimer); _pollTimer=null;
+        btn.classList.remove('loading'); btn.textContent='🔄 手動更新';
+        state.cache={};
+        state.dates=await loadIndex();
+        await renderMulti();
+        if(document.getElementById('tab-single').classList.contains('active')) await renderSingle();
+        showToast('✅ 資料已更新！');
+      }
+    }catch(e){
+      clearInterval(_pollTimer); _pollTimer=null;
+      btn.classList.remove('loading'); btn.textContent='🔄 手動更新';
+    }
+  },10000);
 }
 
 /* ══════════════════════ Tab switching ══════════════════════ */
@@ -1249,15 +1119,6 @@ function initStaticUI(){
     </label>`;
   });
 
-  // Restore saved values
-  const savedToken=localStorage.getItem('tg_token');
-  const savedChat=localStorage.getItem('tg_chat_id');
-  const savedPat=localStorage.getItem('gh_pat');
-  if(savedToken){ document.getElementById('tg-token').value=savedToken; document.getElementById('tg-token').classList.add('saved'); }
-  if(savedChat){ document.getElementById('tg-chatid').value=savedChat; document.getElementById('tg-chatid').classList.add('saved'); }
-  if(savedPat){ document.getElementById('gh-pat').value=savedPat; document.getElementById('gh-pat').classList.add('saved'); }
-  if(savedToken&&savedChat) document.getElementById('tg-save-status').innerHTML='<span class="status-badge status-ok">✓ 已儲存</span>';
-  if(savedPat) document.getElementById('pat-save-status').innerHTML='<span class="status-badge status-ok">✓ 已儲存</span>';
 }
 
 /* ══════════════════════ Event listeners ══════════════════════ */
@@ -1497,6 +1358,33 @@ function renderLwChart(container,ohlcv,markers){
   initStaticUI();
   state.dates=await loadIndex();
   await renderMulti();
+
+  // 開頁自動更新：若今日資料不存在且為交易日則自動觸發
+  const todayStr=new Date().toLocaleDateString('sv',{timeZone:'Asia/Taipei'}).replace(/-/g,'');
+  const dow=new Date().toLocaleDateString('en',{timeZone:'Asia/Taipei',weekday:'short'});
+  if(!state.dates.includes(todayStr) && !['Sat','Sun'].includes(dow)){
+    try{
+      const sr=await fetch('/api/status');
+      const ss=await sr.json();
+      if(ss.running){
+        showToast('⏳ 資料更新已在背景執行中…');
+        document.getElementById('update-btn').classList.add('loading');
+        document.getElementById('update-btn').textContent='⏳ 抓取中…';
+        _startPoll();
+      } else {
+        showToast('📡 今日資料未更新，自動抓取中…');
+        const r=await fetch('/api/update',{method:'POST'});
+        const d=await r.json();
+        if(d.status==='started'||d.status==='already_running'){
+          document.getElementById('update-btn').classList.add('loading');
+          document.getElementById('update-btn').textContent='⏳ 抓取中…';
+          _startPoll();
+        }
+      }
+    }catch(e){
+      // server 未啟動時靜默忽略
+    }
+  }
 })();
 </script>
 
