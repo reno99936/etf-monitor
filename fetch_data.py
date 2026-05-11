@@ -80,8 +80,10 @@ def load_config() -> dict:
         return {}
 
 
-def fetch_moneydj_holdings(etf_code: str) -> list[dict]:
-    """從 MoneyDJ 抓取 ETF 全部持股（含資料日期驗證）"""
+def fetch_moneydj_holdings(etf_code: str) -> tuple[list[dict], int]:
+    """從 MoneyDJ 抓取 ETF 全部持股（含資料日期驗證）
+    回傳 (holdings, days_old)：days_old=0 今日、>0 舊資料、-1 無法判斷、999 失敗/過期
+    """
     url = (
         "https://www.moneydj.com/ETF/X/Basic/Basic0007B.xdjhtm"
         f"?etfid={etf_code.upper()}.TW"
@@ -92,6 +94,7 @@ def fetch_moneydj_holdings(etf_code: str) -> list[dict]:
         soup = BeautifulSoup(r.text, "lxml")
 
         today_tw = datetime.now(TAIPEI_TZ).date()
+        days_old = -1  # -1 = 無法判斷資料日期
         m_date = re.search(r"資料日期[：:]\s*(\d{4}/\d{2}/\d{2})", r.text)
         if m_date:
             page_date_str = m_date.group(1)
@@ -99,7 +102,7 @@ def fetch_moneydj_holdings(etf_code: str) -> list[dict]:
             days_old = (today_tw - page_date).days
             if days_old > 7:
                 print(f"  ✗  {etf_code} 資料日期 {page_date_str}，超過 7 天未更新，略過")
-                return []
+                return [], 999
             elif days_old > 0:
                 print(f"  ⚠  {etf_code} 資料日期 {page_date_str}（{days_old}天前，ETF 今日尚未更新，沿用）")
             else:
@@ -151,11 +154,11 @@ def fetch_moneydj_holdings(etf_code: str) -> list[dict]:
                     "name": name, "shares": shares, "lots": shares // 1000,
                     "weight": round(weight, 4), "price": 0.0, "value": 0.0,
                 })
-        return holdings
+        return holdings, days_old
 
     except Exception as e:
         print(f"    ✗ MoneyDJ {etf_code}: {e}")
-        return []
+        return [], 999
 
 
 def fetch_stock_prices(code_exchange_pairs: list[tuple[str, str]]) -> dict[str, float]:
@@ -290,24 +293,61 @@ def main():
 
     os.makedirs("data", exist_ok=True)
 
+    RETRY_UNTIL = 23          # 截止小時（台北時間），超過後停止重試
+    RETRY_INTERVAL = 30 * 60  # 每輪重試間隔（秒）
+
     etf_name_map = dict(ETF_LIST)
     all_etf_data: dict[str, dict] = {
         code: {"name": name, "holdings": []} for code, name in ETF_LIST
     }
-    pending: set[str] = set(etf_name_map.keys())
-    attempt = 0
+    days_old_map: dict[str, int] = {}
 
-    # ── 抓取所有 ETF（單輪，7天內資料均接受）────────────────────
+    # ── 第一輪抓取 ───────────────────────────────────────────────
     print(f"\n=== 開始抓取  {datetime.now(TAIPEI_TZ).strftime('%Y-%m-%d %H:%M:%S')} ===\n")
-    for etf_code in sorted(pending):
+    for etf_code in sorted(etf_name_map):
         print(f"  [{etf_code}] {etf_name_map[etf_code]}")
-        holdings = fetch_moneydj_holdings(etf_code)
+        holdings, days_old = fetch_moneydj_holdings(etf_code)
+        days_old_map[etf_code] = days_old
         if holdings:
             all_etf_data[etf_code]["holdings"] = holdings
             print(f"        → ✓ {len(holdings)} 檔")
         else:
             print(f"        → 無法取得持股資料")
         time.sleep(3)
+
+    # ── 重試迴圈：等待今日資料更新 ────────────────────────────────
+    # 有資料但 days_old 1-7 的 ETF，持續重試到取得今日資料或截止時間
+    still_pending = {
+        code for code in etf_name_map
+        if 0 < days_old_map.get(code, 0) <= 7
+    }
+    while still_pending:
+        now = datetime.now(TAIPEI_TZ)
+        if now.hour >= RETRY_UNTIL:
+            print(f"\n  截止時間 {RETRY_UNTIL}:00 已到，停止重試，沿用現有資料")
+            break
+        next_time = (now + timedelta(seconds=RETRY_INTERVAL)).strftime("%H:%M")
+        print(f"\n  以下 ETF 尚未更新今日資料，{RETRY_INTERVAL // 60} 分鐘後重試（預計 {next_time}）：")
+        print(f"  {', '.join(sorted(still_pending))}")
+        time.sleep(RETRY_INTERVAL)
+
+        print(f"\n  重試中... {datetime.now(TAIPEI_TZ).strftime('%H:%M:%S')}")
+        for etf_code in sorted(list(still_pending)):
+            holdings, days_old = fetch_moneydj_holdings(etf_code)
+            if holdings:
+                all_etf_data[etf_code]["holdings"] = holdings
+                days_old_map[etf_code] = days_old
+                if days_old == 0:
+                    still_pending.discard(etf_code)
+                    print(f"        → ✓ {etf_code} 已取得今日資料")
+                else:
+                    print(f"        → {etf_code} 仍為 {days_old} 天前資料，繼續等待")
+            else:
+                print(f"        → {etf_code} 仍無法取得資料")
+            time.sleep(3)
+
+    if not still_pending:
+        print(f"\n  ✓ 所有 ETF 今日資料齊全")
 
     failed = [code for code in etf_name_map if not all_etf_data[code]["holdings"]]
 
